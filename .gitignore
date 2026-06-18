@@ -1,0 +1,80 @@
+# ========================================
+# GiftGPT .gitignore — 根目录
+# ========================================
+
+# --- Java / Maven ---
+target/
+!.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+# --- Spring Boot ---
+*.log
+*.tmp
+
+# --- IDE ---
+.idea/
+*.iws
+*.iml
+*.ipr
+*.swp
+*.swo
+*~
+.vscode/
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+
+# --- OS ---
+.DS_Store
+Thumbs.db
+
+# --- Node / Frontend ---
+node_modules/
+.next/
+out/
+build/
+*.tsbuildinfo
+next-env.d.ts
+
+# --- Frontend env ---
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# --- Frontend debug ---
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+*.egg
+dist/
+
+# --- H2 Database data files ---
+**/data/
+*.mv.db
+*.trace.db
+
+# --- Package lock (keep only package.json in VCS) ---
+package-lock.json
+yarn.lock
+
+# --- Docker ---
+docker-compose.override.yml
