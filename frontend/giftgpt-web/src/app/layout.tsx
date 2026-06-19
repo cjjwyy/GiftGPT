@@ -1,8 +1,7 @@
 import type { Metadata } from 'next';
 import './globals.css';
-import { AuthProvider } from '@/lib/auth';
+import { Providers } from './providers';
 import { Navbar } from '@/components/Navbar';
-import { Footer } from '@/components/Footer';
 import { Toaster } from '@/components/Toaster';
 
 export const metadata: Metadata = {
@@ -12,14 +11,13 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="zh-CN">
-      <body className="min-h-screen flex flex-col">
-        <AuthProvider>
+    <html lang="zh-CN" suppressHydrationWarning>
+      <body className="min-h-screen flex flex-col bg-gray-50 text-gray-900 antialiased dark:bg-gray-950 dark:text-gray-100">
+        <Providers>
           <Navbar />
           <main className="flex-1">{children}</main>
-          <Footer />
           <Toaster />
-        </AuthProvider>
+        </Providers>
       </body>
     </html>
   );

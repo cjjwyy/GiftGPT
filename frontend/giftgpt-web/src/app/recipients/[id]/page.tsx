@@ -45,14 +45,14 @@ export default function RecipientDetailPage() {
   };
 
   if (loading) return <Loading />;
-  if (!detail) return <div className="text-center py-20 text-gray-500">画像不存在</div>;
+  if (!detail) return <div className="text-center py-20 text-gray-500 dark:text-gray-400">画像不存在</div>;
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-10">
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">收礼人画像详情</h1>
+      <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">收礼人画像详情</h1>
       <div className="card space-y-4">
         <div>
-          <label className="text-sm text-gray-500">姓名</label>
+          <label className="text-sm text-gray-500 dark:text-gray-400">姓名</label>
           {editing ? (
             <input className="input-field mt-1" value={name} onChange={e => setName(e.target.value)} />
           ) : (
@@ -60,7 +60,7 @@ export default function RecipientDetailPage() {
           )}
         </div>
         <div>
-          <label className="text-sm text-gray-500">关系</label>
+          <label className="text-sm text-gray-500 dark:text-gray-400">关系</label>
           {editing ? (
             <input className="input-field mt-1" value={relation} onChange={e => setRelation(e.target.value)} />
           ) : (
@@ -68,7 +68,7 @@ export default function RecipientDetailPage() {
           )}
         </div>
         <div>
-          <label className="text-sm text-gray-500 mb-2 block">性格标签</label>
+          <label className="text-sm text-gray-500 dark:text-gray-400 mb-2 block">性格标签</label>
           {editing ? (
             <div className="flex flex-wrap gap-2">
               {TAG_OPTIONS.map(t => (
@@ -80,14 +80,14 @@ export default function RecipientDetailPage() {
           ) : (
             <div className="flex flex-wrap gap-1">
               {detail.tags?.map((t: string) => <span key={t} className="tag">{t}</span>)}
-              {(!detail.tags || detail.tags.length === 0) && <span className="text-gray-400">暂无标签</span>}
+              {(!detail.tags || detail.tags.length === 0) && <span className="text-gray-400 dark:text-gray-500">暂无标签</span>}
             </div>
           )}
         </div>
         {detail.personalityDesc && (
           <div>
-            <label className="text-sm text-gray-500">AI 分析</label>
-            <p className="text-gray-700 mt-1">{detail.personalityDesc}</p>
+            <label className="text-sm text-gray-500 dark:text-gray-400">AI 分析</label>
+            <p className="text-gray-700 dark:text-gray-200 mt-1">{detail.personalityDesc}</p>
           </div>
         )}
 

@@ -1,5 +1,13 @@
-import { AuthProvider } from '@/lib/auth';
+'use client';
 
-export default function AppLayout({ children }: { children: React.ReactNode }) {
-  return <AuthProvider>{children}</AuthProvider>;
+import { AuthProvider } from '@/lib/auth';
+import { ThemeProvider } from '@/components/ThemeProvider';
+
+export function Providers({ children }: { children: React.ReactNode }) {
+  return (
+    <AuthProvider>
+      <ThemeProvider>{children}</ThemeProvider>
+    </AuthProvider>
+  );
 }
+

@@ -58,6 +58,8 @@ public class AuthService {
         userMapper.insert(user);
 
         StpUtil.login(user.getId());
+        // Store nickname in token session so frontend can restore it
+        StpUtil.getSession().set("nickname", user.getNickname());
         String token = StpUtil.getTokenValue();
 
         LoginResponse resp = new LoginResponse();

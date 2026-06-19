@@ -5,17 +5,17 @@ export default function HomePage() {
   return (
     <div>
       {/* Hero */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-primary-50 via-white to-rose-50">
+      <section className="relative overflow-hidden bg-gradient-to-br from-primary-50 via-white to-rose-50 dark:from-gray-900 dark:via-gray-950 dark:to-gray-900">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 lg:py-32">
           <div className="max-w-3xl mx-auto text-center">
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary-100 text-primary-700 text-sm font-medium mb-6">
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 text-sm font-medium mb-6">
               <Sparkles className="w-4 h-4" />
               AI 驱动 · 全链路闭环
             </div>
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-gray-900 leading-tight mb-6">
+            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-gray-900 dark:text-white leading-tight mb-6">
               不猜，<span className="text-transparent bg-clip-text bg-gradient-to-r from-primary-500 to-rose-500">更懂TA的心意</span>
             </h1>
-            <p className="text-lg sm:text-xl text-gray-500 mb-10 max-w-xl mx-auto">
+            <p className="text-lg sm:text-xl text-gray-500 dark:text-gray-400 mb-10 max-w-xl mx-auto">
               消除"不知道送什么"的焦虑，让每一份礼物都恰到好处。<br />
               基于AI性格匹配 + 场景分析，一键获得专属礼物清单。
             </p>
@@ -31,15 +31,15 @@ export default function HomePage() {
             </div>
           </div>
         </div>
-        <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_50%_120%,rgba(251,146,60,0.1),rgba(255,255,255,0))]" />
+        <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_50%_120%,rgba(251,146,60,0.1),rgba(255,255,255,0))] dark:bg-[radial-gradient(circle_at_50%_120%,rgba(251,146,60,0.08),rgba(0,0,0,0))]" />
       </section>
 
       {/* Features */}
-      <section className="py-20 bg-white">
+      <section className="py-20 bg-white dark:bg-gray-950">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-14">
-            <h2 className="text-3xl font-bold text-gray-900 mb-4">一站式送礼解决方案</h2>
-            <p className="text-gray-500">从选品到送达，全链路智能化</p>
+            <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-4">一站式送礼解决方案</h2>
+            <p className="text-gray-500 dark:text-gray-400">从选品到送达，全链路智能化</p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
             {[
@@ -48,12 +48,12 @@ export default function HomePage() {
               { icon: Heart, title: '包装贺卡', desc: 'AI生成个性化祝福文案' },
               { icon: Gift, title: '物流追踪', desc: '一站式配送，收礼人双向互动' },
             ].map((f, i) => (
-              <div key={i} className="text-center p-6 rounded-2xl hover:bg-gray-50 transition-colors">
-                <div className="w-14 h-14 bg-primary-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                  <f.icon className="w-7 h-7 text-primary-500" />
+              <div key={i} className="text-center p-6 rounded-2xl hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+                <div className="w-14 h-14 bg-primary-50 dark:bg-primary-900/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                  <f.icon className="w-7 h-7 text-primary-500 dark:text-primary-400" />
                 </div>
-                <h3 className="font-semibold text-gray-800 mb-2">{f.title}</h3>
-                <p className="text-sm text-gray-500">{f.desc}</p>
+                <h3 className="font-semibold text-gray-800 dark:text-gray-200 mb-2">{f.title}</h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400">{f.desc}</p>
               </div>
             ))}
           </div>

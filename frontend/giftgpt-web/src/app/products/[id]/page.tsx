@@ -24,10 +24,10 @@ export default function ProductDetailPage() {
           <Gift className="w-24 h-24 text-primary-400" />
         </div>
         <div className="space-y-4">
-          <h1 className="text-2xl font-bold text-gray-900">{product.name}</h1>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{product.name}</h1>
           <p className="text-3xl font-bold text-rose-500">¥{product.price}</p>
           {product.platform && (
-            <div className="flex items-center gap-2 text-sm text-gray-500">
+            <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
               <span>平台: {product.platform}</span>
               {product.platformUrl && (
                 <a href={product.platformUrl} target="_blank" rel="noopener" className="text-primary-500 inline-flex items-center gap-1">
@@ -36,7 +36,7 @@ export default function ProductDetailPage() {
               )}
             </div>
           )}
-          {product.description && <p className="text-gray-600">{product.description}</p>}
+          {product.description && <p className="text-gray-600 dark:text-gray-300">{product.description}</p>}
           <div className="flex gap-3 pt-4">
             <a href={product.platformUrl || '#'} target="_blank" rel="noopener" className="btn-primary inline-flex items-center gap-2">
               立即购买 <ExternalLink className="w-4 h-4" />

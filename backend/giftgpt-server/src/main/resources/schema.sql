@@ -162,7 +162,8 @@ CREATE TABLE IF NOT EXISTS calendar_event (
     event_date DATE NOT NULL,
     remind_before_days INT DEFAULT 3,
     is_repeat TINYINT DEFAULT 1,
-    create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Data Authorization
@@ -201,4 +202,24 @@ CREATE TABLE IF NOT EXISTS enterprise (
     subscription VARCHAR(20) DEFAULT 'free',
     create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Story Reply
+CREATE TABLE IF NOT EXISTS story_reply (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    story_id BIGINT NOT NULL,
+    user_id BIGINT NOT NULL,
+    content CLOB NOT NULL,
+    create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Story Like (track which users liked which stories)
+CREATE TABLE IF NOT EXISTS story_like (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    story_id BIGINT NOT NULL,
+    user_id BIGINT NOT NULL,
+    create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(story_id, user_id)
 );

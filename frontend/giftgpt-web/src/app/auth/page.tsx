@@ -38,22 +38,22 @@ export default function AuthPage() {
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <Gift className="w-12 h-12 text-primary-500 mx-auto mb-3" />
-          <h1 className="text-2xl font-bold text-gray-900">{mode === 'login' ? '欢迎回来' : '创建账号'}</h1>
-          <p className="text-gray-500 mt-1">{mode === 'login' ? '登录以继续使用' : '注册后即可开始使用AI选礼物'}</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{mode === 'login' ? '欢迎回来' : '创建账号'}</h1>
+          <p className="text-gray-500 dark:text-gray-400 mt-1">{mode === 'login' ? '登录以继续使用' : '注册后即可开始使用AI选礼物'}</p>
         </div>
 
         <form onSubmit={onSubmit} className="card space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">手机号</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">手机号</label>
             <input className="input-field" type="text" value={phone} onChange={e => setPhone(e.target.value)} placeholder="请输入手机号" required />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">密码</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">密码</label>
             <input className="input-field" type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="请输入密码" required />
           </div>
           {mode === 'register' && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">昵称 (选填)</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">昵称 (选填)</label>
               <input className="input-field" type="text" value={nickname} onChange={e => setNickname(e.target.value)} placeholder="如何称呼你？" />
             </div>
           )}
@@ -62,7 +62,7 @@ export default function AuthPage() {
           </button>
         </form>
 
-        <p className="text-center mt-4 text-sm text-gray-500">
+        <p className="text-center mt-4 text-sm text-gray-500 dark:text-gray-400">
           {mode === 'login' ? '还没有账号？' : '已有账号？'}
           <button onClick={() => setMode(mode === 'login' ? 'register' : 'login')} className="text-primary-600 ml-1 font-medium">
             {mode === 'login' ? '立即注册' : '去登录'}

@@ -20,12 +20,22 @@ const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const token = getToken();
     if (token) {
-      setUser({ id: 0, nickname: 'User' });
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        setUser({
+          id: Number(payload.loginId) || 0,
+          nickname: payload.nickname || ('用户' + String(payload.loginId || '').slice(-4)),
+        });
+      } catch {
+        setUser({ id: 0, nickname: 'User' });
+      }
     }
+    setLoading(false);
   }, []);
 
   const login = async (phone: string, password: string) => {
@@ -48,7 +58,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider value={{ user, login, register, logout, isAuthenticated: !!user }}>
-      {children}
+      {!loading && children}
     </AuthContext.Provider>
   );
 }

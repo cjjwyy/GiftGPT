@@ -31,25 +31,24 @@ export default function NewRecipientPage() {
     try {
       await recipientApi.create({ name, relation, gender, tags: selectedTags, note });
       toast.success('画像创建成功');
-      router.push('/recipients');
+      setTimeout(() => router.push('/recipients'), 500);
     } catch (err: any) {
-      toast.error(err.message);
-    } finally {
+      toast.error(err.message || '创建失败');
       setLoading(false);
     }
   };
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-10">
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">创建收礼人画像</h1>
+      <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">创建收礼人画像</h1>
       <form onSubmit={onSubmit} className="card space-y-5">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">姓名 *</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">姓名 *</label>
           <input className="input-field" value={name} onChange={e => setName(e.target.value)} placeholder="收礼人的名字" />
         </div>
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">关系</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">关系</label>
             <select className="input-field" value={relation} onChange={e => setRelation(e.target.value)}>
               <option value="">请选择</option>
               <option value="恋人">恋人</option>
@@ -62,7 +61,7 @@ export default function NewRecipientPage() {
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">性别</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">性别</label>
             <select className="input-field" value={gender} onChange={e => setGender(Number(e.target.value))}>
               <option value={0}>未知</option>
               <option value={1}>男</option>
@@ -71,7 +70,7 @@ export default function NewRecipientPage() {
           </div>
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">性格标签 (可多选)</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">性格标签 (可多选)</label>
           <div className="flex flex-wrap gap-2">
             {TAG_OPTIONS.map(tag => (
               <button key={tag} type="button"
@@ -83,7 +82,7 @@ export default function NewRecipientPage() {
           </div>
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">备注</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">备注</label>
           <textarea className="input-field" rows={3} value={note} onChange={e => setNote(e.target.value)} placeholder="任何额外信息..." />
         </div>
         <button type="submit" disabled={loading} className="btn-primary w-full">

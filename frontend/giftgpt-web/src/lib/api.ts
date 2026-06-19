@@ -40,21 +40,17 @@ async function request<T>(
     headers['Authorization'] = token;
   }
 
-  const res = await fetch(API_BASE + path, {
-    ...options,
-    headers,
-  });
-
-  if (res.status === 401) {
-    setToken(null);
-    if (typeof window !== 'undefined' && !path.startsWith('/auth/')) {
-      window.location.href = '/auth';
-    }
-    throw new Error('Unauthorized');
+  const res = await fetch(API_BASE + path, { ...options, headers });
+  const text = await res.text();
+  let json: ApiResponse<T>;
+  try { json = JSON.parse(text); } catch {
+    throw new Error(text || `Server error: HTTP ${res.status}`);
   }
-
-  const json: ApiResponse<T> = await res.json();
   if (json.code !== 200) {
+    if (getToken() && !path.startsWith('/auth/') && (json.code === 401 || json.code === 500)) {
+      // Don't clear token on 500 — could be a transient error
+      if (json.code === 401) setToken(null);
+    }
     throw new Error(json.message || 'Request failed');
   }
   return json.data;
@@ -140,6 +136,10 @@ export const storyApi = {
   create: (data: { title: string; content: string; giftRecordId?: number; isAnonymous?: number }) =>
     request<any>('/stories', { method: 'POST', body: JSON.stringify(data) }),
   like: (id: number) => request<any>(`/stories/${id}/like`, { method: 'POST' }),
+  unlike: (id: number) => request<any>(`/stories/${id}/unlike`, { method: 'POST' }),
+  getReplies: (storyId: number) => request<any>(`/stories/${storyId}/replies`),
+  addReply: (storyId: number, data: { content: string }) =>
+    request<any>(`/stories/${storyId}/replies`, { method: 'POST', body: JSON.stringify(data) }),
 };
 
 // Calendar

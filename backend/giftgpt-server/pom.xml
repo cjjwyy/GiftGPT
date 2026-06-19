@@ -17,8 +17,8 @@
         <dependency><groupId>com.giftgpt</groupId><artifactId>giftgpt-content</artifactId></dependency>
         <dependency><groupId>com.giftgpt</groupId><artifactId>giftgpt-enterprise</artifactId></dependency>
         <dependency><groupId>com.h2database</groupId><artifactId>h2</artifactId><scope>runtime</scope></dependency>
-        <dependency><groupId>com.baomidou</groupId><artifactId>mybatis-plus-spring-boot3-starter</artifactId></dependency>
-        <dependency><groupId>cn.dev33</groupId><artifactId>sa-token-spring-boot3-starter</artifactId></dependency>
+        <dependency><groupId>com.baomidou</groupId><artifactId>mybatis-plus-boot-starter</artifactId></dependency>
+        <dependency><groupId>cn.dev33</groupId><artifactId>sa-token-spring-boot-starter</artifactId></dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
