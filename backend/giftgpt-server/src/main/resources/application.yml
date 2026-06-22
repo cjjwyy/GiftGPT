@@ -1,0 +1,72 @@
+spring:
+  application:
+    name: giftgpt
+  datasource:
+    url: jdbc:h2:file:./data/giftgpt;MODE=MySQL;DB_CLOSE_DELAY=-1;AUTO_RECONNECT=TRUE;NON_KEYWORDS=USER;DATABASE_TO_UPPER=FALSE;DATABASE_TO_LOWER=TRUE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:schema.sql
+      continue-on-error: true
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 50MB
+
+server:
+  port: 8080
+
+mybatis-plus:
+  global-config:
+    db-config:
+      id-type: auto
+  configuration:
+    map-underscore-to-camel-case: true
+
+sa-token:
+  token-name: Authorization
+  timeout: 2592000
+  active-timeout: -1
+  is-concurrent: true
+  is-share: false
+  token-style: simple
+  is-log: false
+  jwt-secret-key: giftgpt-jwt-secret-key-change-in-production
+
+giftgpt:
+  ai:
+    deepseek:
+      api-key: ${DEEPSEEK_API_KEY:}
+      base-url: https://api.deepseek.com/v1
+      model: deepseek-chat
+  commerce:
+    jingdong:
+      app-key: YOUR_JD_APP_KEY
+      app-secret: YOUR_JD_APP_SECRET
+      base-url: https://api.jd.com/routerjson
+    taobao:
+      app-key: YOUR_TB_APP_KEY
+      app-secret: YOUR_TB_APP_SECRET
+      base-url: https://eco.taobao.com/router/rest
+    pinduoduo:
+      client-id: YOUR_PDD_CLIENT_ID
+      client-secret: YOUR_PDD_CLIENT_SECRET
+      base-url: https://gw-api.pinduoduo.com/api/router
+    serpapi:
+      api-key: YOUR_SERPAPI_KEY
+      base-url: https://serpapi.com/search
+  upload:
+    path: ./data/uploads
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+  api-docs:
+    path: /v3/api-docs
