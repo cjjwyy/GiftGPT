@@ -84,6 +84,7 @@ docker-compose.override.yml
 
 # --- Backend config with API keys ---
 backend/giftgpt-server/src/main/resources/application-prod.yml
+backend/giftgpt-server/src/main/resources/application-local.yml
 
 # --- Python test scripts ---
 test-*.py
