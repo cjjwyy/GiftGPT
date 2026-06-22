@@ -1,25 +1,26 @@
-import { Gift, Sparkles, Heart, ArrowRight, Search, Star } from 'lucide-react';
+import { Gift, Sparkles, Heart, ArrowRight, Search } from 'lucide-react';
 import Link from 'next/link';
 
 export default function HomePage() {
   return (
     <div>
       {/* Hero */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-primary-50 via-white to-rose-50 dark:from-gray-900 dark:via-gray-950 dark:to-gray-900">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 lg:py-32">
+      <section className="relative overflow-hidden">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-20 pb-24 lg:pt-28 lg:pb-32">
           <div className="max-w-3xl mx-auto text-center">
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 text-sm font-medium mb-6">
-              <Sparkles className="w-4 h-4" />
+            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/70 dark:bg-gray-900/60 backdrop-blur border border-primary-100/70 dark:border-primary-900/40 text-primary-700 dark:text-primary-300 text-sm font-medium mb-7 shadow-soft">
+              <Sparkles className="w-3.5 h-3.5" />
               AI 驱动 · 全链路闭环
             </div>
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-gray-900 dark:text-white leading-tight mb-6">
+            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-gray-900 dark:text-white leading-[1.1] mb-6 tracking-tight">
               不猜，<span className="text-transparent bg-clip-text bg-gradient-to-r from-primary-500 to-rose-500">更懂TA的心意</span>
             </h1>
-            <p className="text-lg sm:text-xl text-gray-500 dark:text-gray-400 mb-10 max-w-xl mx-auto">
-              消除"不知道送什么"的焦虑，让每一份礼物都恰到好处。<br />
+            <p className="text-lg sm:text-xl text-gray-500 dark:text-gray-400 mb-10 max-w-xl mx-auto leading-relaxed">
+              消除"不知道送什么"的焦虑，让每一份礼物都恰到好处。
+              <br className="hidden sm:block" />
               基于AI性格匹配 + 场景分析，一键获得专属礼物清单。
             </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <div className="flex flex-col sm:flex-row gap-3.5 justify-center">
               <Link href="/recommend" className="btn-primary text-lg py-3 px-8 inline-flex items-center gap-2">
                 <Gift className="w-5 h-5" />
                 开始选礼物
@@ -31,29 +32,28 @@ export default function HomePage() {
             </div>
           </div>
         </div>
-        <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_50%_120%,rgba(251,146,60,0.1),rgba(255,255,255,0))] dark:bg-[radial-gradient(circle_at_50%_120%,rgba(251,146,60,0.08),rgba(0,0,0,0))]" />
       </section>
 
       {/* Features */}
-      <section className="py-20 bg-white dark:bg-gray-950">
+      <section className="py-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-14">
-            <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-4">一站式送礼解决方案</h2>
+            <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-3">一站式送礼解决方案</h2>
             <p className="text-gray-500 dark:text-gray-400">从选品到送达，全链路智能化</p>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
             {[
               { icon: Search, title: '画像构建', desc: 'AI分析收礼人偏好，精准画像' },
               { icon: Sparkles, title: '智能匹配', desc: '性格×场景×预算，一键推荐' },
               { icon: Heart, title: '包装贺卡', desc: 'AI生成个性化祝福文案' },
               { icon: Gift, title: '物流追踪', desc: '一站式配送，收礼人双向互动' },
             ].map((f, i) => (
-              <div key={i} className="text-center p-6 rounded-2xl hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
-                <div className="w-14 h-14 bg-primary-50 dark:bg-primary-900/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                  <f.icon className="w-7 h-7 text-primary-500 dark:text-primary-400" />
+              <div key={i} className="card text-center hover:shadow-lift hover:-translate-y-0.5">
+                <div className="w-14 h-14 bg-gradient-to-br from-primary-50 to-rose-50 dark:from-primary-900/30 dark:to-rose-900/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                  <f.icon className="w-6 h-6 text-primary-500 dark:text-primary-400" />
                 </div>
-                <h3 className="font-semibold text-gray-800 dark:text-gray-200 mb-2">{f.title}</h3>
-                <p className="text-sm text-gray-500 dark:text-gray-400">{f.desc}</p>
+                <h3 className="font-semibold text-gray-800 dark:text-gray-100 mb-1.5">{f.title}</h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400 leading-relaxed">{f.desc}</p>
               </div>
             ))}
           </div>
@@ -61,13 +61,18 @@ export default function HomePage() {
       </section>
 
       {/* CTA */}
-      <section className="py-20 bg-gradient-to-br from-primary-500 to-rose-500">
-        <div className="max-w-3xl mx-auto px-4 text-center">
-          <h2 className="text-3xl font-bold text-white mb-4">准备好了吗？</h2>
-          <p className="text-primary-50 mb-8 text-lg">现在开始，让AI为你挑选最合适的礼物</p>
-          <Link href="/recommend" className="inline-flex items-center gap-2 bg-white text-primary-600 font-bold py-3 px-10 rounded-2xl text-lg hover:shadow-xl transition-all">
-            免费开始使用 <ArrowRight className="w-5 h-5" />
-          </Link>
+      <section className="pb-24">
+        <div className="max-w-5xl mx-auto px-4">
+          <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-primary-500 to-rose-500 px-8 py-16 text-center shadow-lift">
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,0.18),transparent_50%)]" />
+            <div className="relative">
+              <h2 className="text-3xl font-bold text-white mb-3">准备好了吗？</h2>
+              <p className="text-primary-50 mb-8 text-lg">现在开始，让AI为你挑选最合适的礼物</p>
+              <Link href="/recommend" className="inline-flex items-center gap-2 bg-white text-primary-600 font-semibold py-3 px-10 rounded-xl text-lg hover:shadow-xl hover:-translate-y-0.5 transition-all">
+                免费开始使用 <ArrowRight className="w-5 h-5" />
+              </Link>
+            </div>
+          </div>
         </div>
       </section>
     </div>

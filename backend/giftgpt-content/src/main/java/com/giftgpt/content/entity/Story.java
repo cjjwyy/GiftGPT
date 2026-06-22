@@ -1,5 +1,6 @@
 package com.giftgpt.content.entity;
 
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.giftgpt.common.entity.BaseEntity;
 import lombok.Data;
@@ -18,4 +19,11 @@ public class Story extends BaseEntity {
     private Integer likes;
     private Integer isAnonymous;
     private Integer status;
+
+    @TableField(exist = false)
+    private String nickname;
+
+    @TableField(exist = false)
+    private Integer liked;
 }
+

@@ -20,7 +20,7 @@ export function Navbar() {
   ];
 
   return (
-    <nav className="sticky top-0 z-50 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-100 dark:border-gray-800">
+    <nav className="sticky top-0 z-50 bg-white/75 dark:bg-gray-950/75 backdrop-blur-xl border-b border-gray-100/80 dark:border-gray-800/80">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           <Link href="/" className="flex items-center gap-2 font-bold text-xl text-primary-600 dark:text-primary-400">

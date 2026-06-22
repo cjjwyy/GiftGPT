@@ -31,10 +31,14 @@ public class ContentService {
 
     public Page<Story> listStories(int page, int size) {
         Page<Story> p = new Page<>(page, size);
-        return storyMapper.selectPage(p,
-                new LambdaQueryWrapper<Story>()
-                        .eq(Story::getStatus, 1)
-                        .orderByDesc(Story::getCreateTime));
+        Long currentUserId = null;
+        try {
+            if (StpUtil.isLogin()) {
+                currentUserId = StpUtil.getLoginIdAsLong();
+            }
+        } catch (Exception ignored) {
+        }
+        return storyMapper.selectPageWithUser(p, currentUserId);
     }
 
     public Story createStory(StoryCreateRequest request) {
@@ -95,10 +99,7 @@ public class ContentService {
     }
 
     public List<StoryReply> getReplies(Long storyId) {
-        return storyReplyMapper.selectList(
-                new LambdaQueryWrapper<StoryReply>()
-                        .eq(StoryReply::getStoryId, storyId)
-                        .orderByAsc(StoryReply::getCreateTime));
+        return storyReplyMapper.selectRepliesWithUser(storyId);
     }
 
     public StoryReply addReply(Long storyId, String content) {
@@ -108,6 +109,11 @@ public class ContentService {
         reply.setUserId(userId);
         reply.setContent(content);
         storyReplyMapper.insert(reply);
+        reply.setNickname(storyReplyMapper.selectRepliesWithUser(storyId).stream()
+                .filter(r -> r.getId().equals(reply.getId()))
+                .map(StoryReply::getNickname)
+                .findFirst()
+                .orElse(null));
         return reply;
     }
 

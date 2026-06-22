@@ -36,7 +36,10 @@ CREATE TABLE IF NOT EXISTS recipient (
     relation VARCHAR(50),
     gender TINYINT DEFAULT 0,
     age_range VARCHAR(20),
-    note VARCHAR(500),
+    mbti VARCHAR(10),
+    personality VARCHAR(500),
+    recent_purchases CLOB,
+    note CLOB,
     create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -47,7 +50,8 @@ CREATE TABLE IF NOT EXISTS recipient_tag (
     recipient_id BIGINT NOT NULL,
     tag_code VARCHAR(50) NOT NULL,
     tag_name VARCHAR(50) NOT NULL,
-    create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Recipient Profile
@@ -113,7 +117,8 @@ CREATE TABLE IF NOT EXISTS packaging (
     custom_text VARCHAR(200),
     preview_image VARCHAR(500),
     price DECIMAL(10,2) DEFAULT 0,
-    create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Greeting Card
@@ -134,7 +139,8 @@ CREATE TABLE IF NOT EXISTS feedback (
     type VARCHAR(20),
     content CLOB,
     is_public TINYINT DEFAULT 0,
-    create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Story
@@ -223,3 +229,7 @@ CREATE TABLE IF NOT EXISTS story_like (
     update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(story_id, user_id)
 );
+
+-- Schema drift repairs: ensure columns exist for tables created by older schema versions
+ALTER TABLE story_reply ADD COLUMN IF NOT EXISTS update_time TIMESTAMP;
+ALTER TABLE story_like ADD COLUMN IF NOT EXISTS update_time TIMESTAMP;

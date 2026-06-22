@@ -13,6 +13,9 @@ export interface Recipient {
   relation?: string;
   gender?: number;
   ageRange?: string;
+  mbti?: string;
+  personality?: string;
+  recentPurchases?: string;
   note?: string;
   createTime?: string;
 }
@@ -23,6 +26,9 @@ export interface RecipientDetail {
   relation?: string;
   gender?: number;
   ageRange?: string;
+  mbti?: string;
+  personality?: string;
+  recentPurchases?: string;
   note?: string;
   tags: string[];
   personalityDesc?: string;
@@ -95,6 +101,9 @@ export interface StoryItem {
   images?: string;
   likes: number;
   isAnonymous: number;
+  status?: number;
+  nickname?: string;
+  liked?: number;
   createTime?: string;
 }
 

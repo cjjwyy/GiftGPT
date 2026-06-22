@@ -59,6 +59,9 @@ public class RecipientService {
         recipient.setRelation(request.getRelation());
         recipient.setGender(request.getGender());
         recipient.setAgeRange(request.getAgeRange());
+        recipient.setMbti(request.getMbti());
+        recipient.setPersonality(request.getPersonality());
+        recipient.setRecentPurchases(request.getRecentPurchases());
         recipient.setNote(request.getNote());
         recipientMapper.updateById(recipient);
 
@@ -102,6 +105,9 @@ public class RecipientService {
         resp.setRelation(recipient.getRelation());
         resp.setGender(recipient.getGender());
         resp.setAgeRange(recipient.getAgeRange());
+        resp.setMbti(recipient.getMbti());
+        resp.setPersonality(recipient.getPersonality());
+        resp.setRecentPurchases(recipient.getRecentPurchases());
         resp.setNote(recipient.getNote());
         resp.setTags(tags.stream().map(RecipientTag::getTagCode).collect(Collectors.toList()));
         if (profile != null) {

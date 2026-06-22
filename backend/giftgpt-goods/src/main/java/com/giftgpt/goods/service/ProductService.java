@@ -10,19 +10,36 @@ import com.giftgpt.goods.mapper.ProductMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
+import java.util.List;
+
 @Service
 @RequiredArgsConstructor
 public class ProductService {
 
     private final ProductMapper productMapper;
+    private final CommerceService commerceService;
 
     public Page<Product> search(ProductSearchRequest request, int page, int size) {
+        String keyword = request.getKeyword();
+
+        // Try external commerce API search first
+        List<Product> externalProducts = new ArrayList<>();
+        if (keyword != null && !keyword.isBlank()) {
+            externalProducts = commerceService.searchAcrossPlatforms(keyword, page, size);
+            // Save external products to local DB for future queries
+            for (Product p : externalProducts) {
+                try { commerceService.saveProduct(p); } catch (Exception ignored) {}
+            }
+        }
+
+        // Also search local DB
         LambdaQueryWrapper<Product> wrapper = new LambdaQueryWrapper<Product>()
                 .eq(Product::getStatus, 1);
 
-        if (request.getKeyword() != null && !request.getKeyword().isBlank()) {
-            wrapper.and(w -> w.like(Product::getName, request.getKeyword())
-                    .or().like(Product::getDescription, request.getKeyword()));
+        if (keyword != null && !keyword.isBlank()) {
+            wrapper.and(w -> w.like(Product::getName, keyword)
+                    .or().like(Product::getDescription, keyword));
         }
         if (request.getCategory() != null && !request.getCategory().isBlank()) {
             wrapper.eq(Product::getCategory, request.getCategory());
@@ -43,7 +60,24 @@ public class ProductService {
         }
 
         Page<Product> p = new Page<>(page, size);
-        return productMapper.selectPage(p, wrapper);
+        Page<Product> dbResult = productMapper.selectPage(p, wrapper);
+
+        // Merge: external results take priority, then local DB
+        if (!externalProducts.isEmpty()) {
+            List<Product> merged = new ArrayList<>(externalProducts);
+            for (Product dbProduct : dbResult.getRecords()) {
+                boolean exists = merged.stream().anyMatch(ep ->
+                        ep.getName().equals(dbProduct.getName()) &&
+                        ep.getPlatform().equals(dbProduct.getPlatform()));
+                if (!exists) merged.add(dbProduct);
+            }
+            Page<Product> mergedPage = new Page<>(page, size);
+            mergedPage.setRecords(merged);
+            mergedPage.setTotal(merged.size());
+            return mergedPage;
+        }
+
+        return dbResult;
     }
 
     public Product getById(Long id) {

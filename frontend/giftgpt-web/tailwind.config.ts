@@ -11,16 +11,16 @@ const config: Config = {
     extend: {
       colors: {
         primary: {
-          50: '#fff7ed',
-          100: '#ffedd5',
-          200: '#fed7aa',
-          300: '#fdba74',
-          400: '#fb923c',
-          500: '#f97316',
-          600: '#ea580c',
-          700: '#c2410c',
-          800: '#9a3412',
-          900: '#7c2d12',
+          50: '#fdf3f4',
+          100: '#fbe5e8',
+          200: '#f7ccd4',
+          300: '#efa6b5',
+          400: '#e4798f',
+          500: '#d65a76',
+          600: '#be4060',
+          700: '#9d304e',
+          800: '#832a43',
+          900: '#6f273b',
         },
         rose: {
           50: '#fff1f2',
@@ -37,6 +37,14 @@ const config: Config = {
       },
       fontFamily: {
         sans: ['"Noto Sans SC"', 'system-ui', 'sans-serif'],
+      },
+      boxShadow: {
+        soft: '0 1px 2px rgba(15, 23, 42, 0.04), 0 4px 16px rgba(15, 23, 42, 0.06)',
+        card: '0 1px 3px rgba(15, 23, 42, 0.05), 0 8px 24px -8px rgba(15, 23, 42, 0.08)',
+        lift: '0 8px 30px -6px rgba(15, 23, 42, 0.12)',
+      },
+      borderRadius: {
+        '2xl': '1.25rem',
       },
     },
   },

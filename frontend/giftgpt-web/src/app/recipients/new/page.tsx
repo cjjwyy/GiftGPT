@@ -11,12 +11,20 @@ const TAG_OPTIONS = [
   '时尚', '简约', '复古', '浪漫', '艺术', '理性',
 ];
 
+const MBTI_OPTIONS = [
+  'INTJ', 'INTP', 'ENTJ', 'ENTP', 'INFJ', 'INFP', 'ENFJ', 'ENFP',
+  'ISTJ', 'ISFJ', 'ESTJ', 'ESFJ', 'ISTP', 'ISFP', 'ESTP', 'ESFP',
+];
+
 export default function NewRecipientPage() {
   const router = useRouter();
   const [name, setName] = useState('');
   const [relation, setRelation] = useState('');
   const [gender, setGender] = useState(0);
+  const [mbti, setMbti] = useState('');
+  const [personality, setPersonality] = useState('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [recentPurchases, setRecentPurchases] = useState('');
   const [note, setNote] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -29,7 +37,7 @@ export default function NewRecipientPage() {
     if (!name.trim()) { toast.error('请输入收礼人姓名'); return; }
     setLoading(true);
     try {
-      await recipientApi.create({ name, relation, gender, tags: selectedTags, note });
+      await recipientApi.create({ name, relation, gender, mbti, personality, tags: selectedTags, recentPurchases, note });
       toast.success('画像创建成功');
       setTimeout(() => router.push('/recipients'), 500);
     } catch (err: any) {
@@ -69,6 +77,19 @@ export default function NewRecipientPage() {
             </select>
           </div>
         </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">MBTI人格</label>
+            <select className="input-field" value={mbti} onChange={e => setMbti(e.target.value)}>
+              <option value="">请选择（可选）</option>
+              {MBTI_OPTIONS.map(m => <option key={m} value={m}>{m}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">性格描述</label>
+            <input className="input-field" value={personality} onChange={e => setPersonality(e.target.value)} placeholder="如：细心、开朗、沉稳..." />
+          </div>
+        </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">性格标签 (可多选)</label>
           <div className="flex flex-wrap gap-2">
@@ -80,6 +101,10 @@ export default function NewRecipientPage() {
               </button>
             ))}
           </div>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">最近购买/关注</label>
+          <textarea className="input-field" rows={2} value={recentPurchases} onChange={e => setRecentPurchases(e.target.value)} placeholder="TA最近买过或关注的东西，帮助AI避免重复推荐..." />
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">备注</label>
