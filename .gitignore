@@ -76,6 +76,9 @@ dist/
 package-lock.json
 yarn.lock
 
+# --- Uploaded files ---
+data/uploads/
+
 # --- Docker ---
 docker-compose.override.yml
 
