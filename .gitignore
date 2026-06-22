@@ -78,3 +78,21 @@ yarn.lock
 
 # --- Docker ---
 docker-compose.override.yml
+
+# --- Backend config with API keys ---
+backend/giftgpt-server/src/main/resources/application-prod.yml
+
+# --- Python test scripts ---
+test-*.py
+*.json
+reg.json
+
+# --- Claude settings ---
+.claude/settings.local.json
+
+# --- Backup files ---
+*.bak
+*.backup
+
+# --- Detailed docs ---
+README(detailed).md
