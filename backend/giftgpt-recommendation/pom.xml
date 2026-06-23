@@ -9,5 +9,6 @@
     <dependencies>
         <dependency><groupId>com.giftgpt</groupId><artifactId>giftgpt-common</artifactId></dependency>
         <dependency><groupId>com.giftgpt</groupId><artifactId>giftgpt-user</artifactId></dependency>
+        <dependency><groupId>com.giftgpt</groupId><artifactId>giftgpt-goods</artifactId></dependency>
     </dependencies>
 </project>

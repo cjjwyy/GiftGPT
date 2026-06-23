@@ -9,6 +9,7 @@ public class ProductSearchRequest {
 
     private String keyword;
     private String category;
+    private String platform;
     private BigDecimal minPrice;
     private BigDecimal maxPrice;
     private String sort;

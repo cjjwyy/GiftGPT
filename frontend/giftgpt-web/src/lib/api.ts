@@ -88,6 +88,12 @@ export const recipientApi = {
 export const recommendApi = {
   search: (data: { recipientId: number; occasion: string; budget: number }) =>
     request<any>('/recommendations/search', { method: 'POST', body: JSON.stringify(data) }),
+  analyze: (recipientId: number) =>
+    request<any>('/recommendations/analyze', { method: 'POST', body: JSON.stringify({ recipientId }) }),
+  aiGifts: (data: { recipientId: number; occasion: string; budget: number; extraNote?: string }) =>
+    request<any>('/recommendations/ai-gifts', { method: 'POST', body: JSON.stringify(data) }),
+  match: (data: any) =>
+    request<any>('/recommendations/match', { method: 'POST', body: JSON.stringify(data) }),
   history: (page = 1, size = 10) =>
     request<any>(`/recommendations/history?page=${page}&size=${size}`),
   feedback: (id: number, feedback: string) =>
@@ -105,6 +111,7 @@ export const productApi = {
     return request<any>(`/products/search?${qs.toString()}`);
   },
   get: (id: number) => request<any>(`/products/${id}`),
+  pddAuthority: () => request<any>('/products/platforms/pinduoduo/authority'),
 };
 
 // Gifts

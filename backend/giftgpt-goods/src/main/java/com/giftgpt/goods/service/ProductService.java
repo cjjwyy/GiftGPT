@@ -23,17 +23,17 @@ public class ProductService {
     public Page<Product> search(ProductSearchRequest request, int page, int size) {
         String keyword = request.getKeyword();
 
-        // Try external commerce API search first
+        // Fetch fresh results from platform APIs when keyword is provided
         List<Product> externalProducts = new ArrayList<>();
         if (keyword != null && !keyword.isBlank()) {
-            externalProducts = commerceService.searchAcrossPlatforms(keyword, page, size);
-            // Save external products to local DB for future queries
-            for (Product p : externalProducts) {
-                try { commerceService.saveProduct(p); } catch (Exception ignored) {}
+            if (request.getPlatform() != null && !request.getPlatform().isBlank()) {
+                externalProducts = commerceService.searchByPlatform(keyword, request.getPlatform(), page, size);
+            } else {
+                externalProducts = commerceService.searchAcrossPlatforms(keyword, page, size);
             }
         }
 
-        // Also search local DB
+        // Also query local DB for cached products
         LambdaQueryWrapper<Product> wrapper = new LambdaQueryWrapper<Product>()
                 .eq(Product::getStatus, 1);
 
@@ -43,6 +43,9 @@ public class ProductService {
         }
         if (request.getCategory() != null && !request.getCategory().isBlank()) {
             wrapper.eq(Product::getCategory, request.getCategory());
+        }
+        if (request.getPlatform() != null && !request.getPlatform().isBlank()) {
+            wrapper.eq(Product::getPlatform, request.getPlatform());
         }
         if (request.getMinPrice() != null) {
             wrapper.ge(Product::getPrice, request.getMinPrice());
@@ -62,7 +65,7 @@ public class ProductService {
         Page<Product> p = new Page<>(page, size);
         Page<Product> dbResult = productMapper.selectPage(p, wrapper);
 
-        // Merge: external results take priority, then local DB
+        // Merge: fresh API results first, then local DB (dedupe by name+platform)
         if (!externalProducts.isEmpty()) {
             List<Product> merged = new ArrayList<>(externalProducts);
             for (Product dbProduct : dbResult.getRecords()) {

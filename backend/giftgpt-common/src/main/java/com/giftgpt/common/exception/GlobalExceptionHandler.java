@@ -2,7 +2,6 @@ package com.giftgpt.common.exception;
 
 import com.giftgpt.common.result.Result;
 import com.giftgpt.common.result.ResultCode;
-import javax.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -28,12 +27,6 @@ public class GlobalExceptionHandler {
                 .reduce((a, b) -> a + "; " + b)
                 .orElse("参数校验失败");
         return Result.fail(ResultCode.BAD_REQUEST.getCode(), msg);
-    }
-
-    @ExceptionHandler(ConstraintViolationException.class)
-    @ResponseStatus(HttpStatus.BAD_REQUEST)
-    public Result<Void> handleConstraintViolation(ConstraintViolationException e) {
-        return Result.fail(ResultCode.BAD_REQUEST.getCode(), e.getMessage());
     }
 
     @ExceptionHandler(Exception.class)

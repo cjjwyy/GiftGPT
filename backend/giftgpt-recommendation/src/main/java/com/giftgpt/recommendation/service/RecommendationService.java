@@ -8,6 +8,13 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.giftgpt.common.exception.BusinessException;
 import com.giftgpt.common.result.ResultCode;
+import com.giftgpt.goods.entity.Product;
+import com.giftgpt.goods.mapper.ProductMapper;
+import com.giftgpt.goods.service.CommerceService;
+import com.giftgpt.recommendation.dto.AiGift;
+import com.giftgpt.recommendation.dto.AiGiftsResponse;
+import com.giftgpt.recommendation.dto.MatchRequest;
+import com.giftgpt.recommendation.dto.PersonalitySnapshot;
 import com.giftgpt.recommendation.dto.RecommendFeedbackRequest;
 import com.giftgpt.recommendation.dto.RecommendItem;
 import com.giftgpt.recommendation.dto.RecommendRequest;
@@ -38,6 +45,7 @@ import java.security.SecureRandom;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -49,6 +57,8 @@ public class RecommendationService {
     private final RecipientMapper recipientMapper;
     private final RecipientTagMapper recipientTagMapper;
     private final RecommendationHistoryMapper historyMapper;
+    private final ProductMapper productMapper;
+    private final CommerceService commerceService;
 
     @Value("${giftgpt.ai.deepseek.api-key}")
     private String apiKey;
@@ -110,28 +120,41 @@ public class RecommendationService {
 
     @Data
     static class AiGiftResult {
-        private List<AiGiftItem> gifts;
+        private List<AiGift> gifts;
         private String summary;
-    }
-
-    @Data
-    static class AiGiftItem {
-        private String name;
-        private double price;
-        private String reason;
-        private List<String> tags;
-        private String platform;
     }
 
     // ---------- Core Logic ----------
 
-    public RecommendResponse search(RecommendRequest request) {
-        Long userId = StpUtil.getLoginIdAsLong();
-        Recipient recipient = recipientMapper.selectById(request.getRecipientId());
-        if (recipient == null || !recipient.getUserId().equals(userId)) {
-            throw new BusinessException(ResultCode.RECIPIENT_NOT_FOUND);
-        }
+    // ---------- Core Logic (3 steps) ----------
 
+    /** Step 1: analyze the recipient's personality from their profile + tags. */
+    public PersonalitySnapshot analyze(Long recipientId) {
+        Long userId = StpUtil.getLoginIdAsLong();
+        Recipient recipient = loadOwnRecipient(recipientId, userId);
+        List<RecipientTag> tags = recipientTagMapper.selectList(
+                new LambdaQueryWrapper<RecipientTag>().eq(RecipientTag::getRecipientId, recipient.getId()));
+        List<String> tagNames = tags.stream().map(RecipientTag::getTagName).collect(Collectors.toList());
+
+        PersonalitySnapshot snapshot = new PersonalitySnapshot();
+        snapshot.setRecipientId(recipient.getId());
+        snapshot.setName(recipient.getName());
+        snapshot.setRelation(recipient.getRelation());
+        snapshot.setGender(recipient.getGender());
+        snapshot.setAgeRange(recipient.getAgeRange());
+        snapshot.setMbti(recipient.getMbti());
+        snapshot.setPersonality(recipient.getPersonality());
+        snapshot.setTags(tagNames);
+        snapshot.setRecentPurchases(recipient.getRecentPurchases());
+        snapshot.setNote(recipient.getNote());
+        snapshot.setAnalysis(buildAnalysis(recipient, tagNames));
+        return snapshot;
+    }
+
+    /** Step 2: ask the LLM to judge suitable gifts for the recipient. */
+    public AiGiftsResponse generateAiGifts(RecommendRequest request) {
+        Long userId = StpUtil.getLoginIdAsLong();
+        Recipient recipient = loadOwnRecipient(request.getRecipientId(), userId);
         List<RecipientTag> tags = recipientTagMapper.selectList(
                 new LambdaQueryWrapper<RecipientTag>().eq(RecipientTag::getRecipientId, recipient.getId()));
         List<String> tagNames = tags.stream().map(RecipientTag::getTagName).collect(Collectors.toList());
@@ -139,38 +162,39 @@ public class RecommendationService {
         String occasionLabel = translateOccasion(request.getOccasion());
         String prompt = buildPrompt(recipient, tagNames, occasionLabel, request.getBudget(), request.getExtraNote());
 
-        AiGiftResult aiResult;
+        AiGiftsResponse resp = new AiGiftsResponse();
         try {
-            aiResult = callDeepseek(prompt);
+            AiGiftResult aiResult = callDeepseek(prompt);
+            resp.setGifts(aiResult.getGifts());
+            resp.setSummary(aiResult.getSummary());
         } catch (Exception e) {
-            log.error("Deepseek API call failed, falling back to mock", e);
-            // Fallback: use old mock logic if AI call fails
-            RecommendResponse fallback = new RecommendResponse();
-            fallback.setRecipientId(recipient.getId());
-            fallback.setRecipientName(recipient.getName());
-            fallback.setOccasion(request.getOccasion());
-            fallback.setBudget(request.getBudget());
-            fallback.setItems(generateMockItems(request, tagNames));
-            fallback.setSummary("AI 服务暂时不可用，以下为基于标签的推荐结果");
-            saveHistory(userId, recipient.getId(), request.getOccasion(), request.getBudget(), fallback);
-            return fallback;
+            log.error("Deepseek API call failed, using tag-based fallback", e);
+            resp.setGifts(fallbackAiGifts(request, tagNames));
+            resp.setSummary("AI 服务暂时不可用，以下为基于标签的推荐结果");
         }
+        return resp;
+    }
+
+    /** Step 3: search shopping platforms for each AI gift and assemble the final recommendation. */
+    public RecommendResponse matchAndSearch(MatchRequest request) {
+        Long userId = StpUtil.getLoginIdAsLong();
+        Recipient recipient = loadOwnRecipient(request.getRecipientId(), userId);
+        String occasionLabel = translateOccasion(request.getOccasion());
 
         List<RecommendItem> items = new ArrayList<>();
-        if (aiResult.getGifts() != null) {
-            long idx = 1;
-            for (AiGiftItem gi : aiResult.getGifts()) {
-                RecommendItem item = new RecommendItem();
-                item.setProductId(idx++);
-                item.setProductName(gi.getName());
-                item.setPrice(BigDecimal.valueOf(gi.getPrice()));
-                item.setImageUrl("");
-                item.setPlatform(gi.getPlatform() != null ? gi.getPlatform() : "综合电商");
-                item.setPlatformUrl("https://www.jd.com");
-                item.setReason(gi.getReason());
-                item.setMatchTags(gi.getTags());
-                item.setScore(0.90 + Math.random() * 0.10);
-                items.add(item);
+        List<AiGift> gifts = request.getGifts() != null ? request.getGifts() : new ArrayList<>();
+
+        // Search platforms for each gift in parallel, then build items
+        List<CompletableFuture<RecommendItem>> futures = new ArrayList<>();
+        for (AiGift gi : gifts) {
+            futures.add(CompletableFuture.supplyAsync(() -> buildItemFromAiGift(gi)));
+        }
+        for (CompletableFuture<RecommendItem> f : futures) {
+            try {
+                RecommendItem item = f.get(20, TimeUnit.SECONDS);
+                if (item != null) items.add(item);
+            } catch (Exception e) {
+                log.warn("Build item failed: {}", e.getMessage());
             }
         }
 
@@ -180,11 +204,143 @@ public class RecommendationService {
         response.setOccasion(request.getOccasion());
         response.setBudget(request.getBudget());
         response.setItems(items);
-        response.setSummary(aiResult.getSummary() != null ? aiResult.getSummary() :
-                "根据" + recipient.getName() + "的特征，在" + occasionLabel + "场景下为您推荐以下礼物");
+        response.setSummary(request.getSummary() != null && !request.getSummary().isBlank() ? request.getSummary()
+                : "根据" + recipient.getName() + "的特征，在" + occasionLabel + "场景下为您推荐以下礼物");
 
         saveHistory(userId, recipient.getId(), request.getOccasion(), request.getBudget(), response);
         return response;
+    }
+
+    /** Backward-compatible single call: runs all 3 steps. */
+    public RecommendResponse search(RecommendRequest request) {
+        AiGiftsResponse ai = generateAiGifts(request);
+        MatchRequest matchReq = new MatchRequest();
+        matchReq.setRecipientId(request.getRecipientId());
+        matchReq.setOccasion(request.getOccasion());
+        matchReq.setBudget(request.getBudget());
+        matchReq.setExtraNote(request.getExtraNote());
+        matchReq.setGifts(ai.getGifts());
+        matchReq.setSummary(ai.getSummary());
+        return matchAndSearch(matchReq);
+    }
+
+    private Recipient loadOwnRecipient(Long recipientId, Long userId) {
+        Recipient recipient = recipientMapper.selectById(recipientId);
+        if (recipient == null || !recipient.getUserId().equals(userId)) {
+            throw new BusinessException(ResultCode.RECIPIENT_NOT_FOUND);
+        }
+        return recipient;
+    }
+
+    private String buildAnalysis(Recipient recipient, List<String> tags) {
+        StringBuilder sb = new StringBuilder();
+        if (recipient.getMbti() != null && !recipient.getMbti().isBlank()) {
+            sb.append("MBTI ").append(recipient.getMbti()).append("，");
+        }
+        if (recipient.getPersonality() != null && !recipient.getPersonality().isBlank()) {
+            sb.append(recipient.getPersonality()).append("；");
+        }
+        if (!tags.isEmpty()) {
+            sb.append("兴趣标签：").append(String.join("、", tags)).append("。");
+        }
+        if (recipient.getRelation() != null) {
+            sb.append("关系：").append(recipient.getRelation()).append("。");
+        }
+        if (sb.length() == 0) sb.append("画像信息较少，将基于场景与预算综合推荐。");
+        return sb.toString();
+    }
+
+    /** Build a RecommendItem from an AI gift: try live platform search, then local DB, then AI hint. */
+    private RecommendItem buildItemFromAiGift(AiGift gi) {
+        RecommendItem item = new RecommendItem();
+        item.setProductName(gi.getName());
+        item.setPrice(BigDecimal.valueOf(gi.getPrice()));
+        item.setReason(gi.getReason());
+        item.setMatchTags(gi.getTags());
+        item.setScore(0.90 + Math.random() * 0.10);
+
+        Product matched = searchPlatformForGift(gi);
+        if (matched == null) {
+            matched = matchToRealProduct(gi);
+        }
+        if (matched != null) {
+            item.setProductId(matched.getId());
+            item.setImageUrl(matched.getImageUrl() != null ? matched.getImageUrl() : "");
+            item.setPlatform(matched.getPlatform());
+            item.setPlatformUrl(matched.getPlatformUrl() != null ? matched.getPlatformUrl() : "");
+            if (matched.getPrice() != null) {
+                item.setPrice(matched.getPrice());
+            }
+        } else {
+            item.setProductId(-1L);
+            item.setImageUrl("");
+            item.setPlatform(gi.getPlatform() != null && !gi.getPlatform().isBlank() ? gi.getPlatform() : "综合电商");
+            item.setPlatformUrl("https://search.jd.com/Search?keyword=" + gi.getName());
+        }
+        return item;
+    }
+
+    /** Live platform search: look up the AI gift name on the suggested platform (or all platforms). */
+    private Product searchPlatformForGift(AiGift gi) {
+        String keyword = gi.getName().replaceAll("[（(].*?[）)]", "").trim();
+        if (keyword.isBlank()) return null;
+        List<Product> found;
+        if (gi.getPlatform() != null && !gi.getPlatform().isBlank()
+                && (gi.getPlatform().contains("京东") || gi.getPlatform().contains("淘宝") || gi.getPlatform().contains("拼多多"))) {
+            String plat = gi.getPlatform().contains("京东") ? "京东"
+                    : gi.getPlatform().contains("淘宝") ? "淘宝" : "拼多多";
+            found = commerceService.searchByPlatform(keyword, plat, 1, 5);
+        } else {
+            found = commerceService.searchAcrossPlatforms(keyword, 1, 5);
+        }
+        if (found == null || found.isEmpty()) return null;
+        Product best = pickBestMatch(found, keyword);
+        if (best != null) {
+            log.info("Platform match '{}' → '{}' on {}", gi.getName(), best.getName(), best.getPlatform());
+        }
+        return best;
+    }
+
+    private Product pickBestMatch(List<Product> candidates, String keyword) {
+        String[] kws = keyword.toLowerCase().split("[\\s,，、]+");
+        Product best = null;
+        int bestScore = -1;
+        for (Product p : candidates) {
+            String name = p.getName() == null ? "" : p.getName().toLowerCase();
+            int score = 0;
+            for (String k : kws) {
+                if (k.length() >= 2 && name.contains(k)) score += k.length();
+            }
+            if (score > bestScore) {
+                bestScore = score;
+                best = p;
+            }
+        }
+        return bestScore > 0 ? best : (candidates.isEmpty() ? null : candidates.get(0));
+    }
+
+    private List<AiGift> fallbackAiGifts(RecommendRequest request, List<String> tags) {
+        List<AiGift> gifts = new ArrayList<>();
+        if (tags.contains("文艺") || tags.contains("文学")) gifts.add(mockGift("手写羊皮卷情书定制礼盒", 129, "结合TA的文艺气质，手写体+复古羊皮纸营造仪式感", "淘宝"));
+        if (tags.contains("摄影") || tags.contains("户外")) gifts.add(mockGift("富士拍立得instax mini 12", 459, "即时记录旅行瞬间，与TA的摄影+户外属性完美契合", "京东"));
+        if (tags.contains("极客") || tags.contains("科技")) gifts.add(mockGift("机械键盘定制键帽套装", 299, "极客属性标配，可自定义配色方案", "京东"));
+        if (tags.contains("养生") || tags.contains("健康")) gifts.add(mockGift("智能温控泡脚桶", 199, "养生派首选，智能恒温+多档按摩", "拼多多"));
+        if (tags.contains("音乐") || tags.contains("艺术")) gifts.add(mockGift("黑胶唱片装饰灯", 168, "音乐美学二合一", "淘宝"));
+        gifts.add(mockGift("永生花音乐盒礼盒", 239, "经典浪漫之选", "淘宝"));
+        gifts.add(mockGift("北欧极简香薰蜡烛礼盒", 89, "营造温馨氛围", "拼多多"));
+        return gifts.stream()
+                .filter(g -> BigDecimal.valueOf(g.getPrice()).compareTo(request.getBudget()) <= 0)
+                .collect(Collectors.toList());
+    }
+
+    private AiGift mockGift(String name, double price, String reason, String platform) {
+        AiGift g = new AiGift();
+        g.setName(name);
+        g.setPrice(price);
+        g.setReason(reason);
+        g.setTags(new ArrayList<>());
+        g.setPlatform(platform);
+        return g;
     }
 
     private void saveHistory(Long userId, Long recipientId, String occasion,
@@ -216,8 +372,8 @@ public class RecommendationService {
         String extraStr = extraNote != null && !extraNote.isBlank() ? extraNote : "";
 
         return String.format(
-            "你是一个专业的礼物推荐顾问，拥有丰富的礼物挑选经验和深厚的人际关系洞察力。\n" +
-            "请根据以下收礼人画像，在该场景和预算范围内，推荐5-8个最合适的礼物。\n" +
+            "你是一位资深的礼物推荐顾问，擅长从收礼人的性格、兴趣与关系出发，挑选既有情感温度又实用的礼物。\n" +
+            "请基于下方画像，在指定场景和预算内，推荐 5-8 件最合适的礼物。\n" +
             "\n" +
             "【收礼人画像】\n" +
             "- 姓名：%s\n" +
@@ -226,39 +382,39 @@ public class RecommendationService {
             "- 年龄段：%s\n" +
             "- MBTI人格：%s\n" +
             "- 性格特点：%s\n" +
-            "- 性格标签：%s\n" +
+            "- 兴趣标签：%s\n" +
             "- 最近购买/关注：%s\n" +
             "- 备注：%s\n" +
             "\n" +
             "【送礼场景】%s\n" +
-            "【预算范围】¥%s 以内\n" +
-            "%s%s" +
+            "【预算上限】¥%s\n" +
+            "%s" +
             "\n" +
-            "【推荐要求】\n" +
-            "1. 礼物要与收礼人的MBTI人格、性格特点、兴趣标签、年龄、关系高度匹配，每件都应有独特的推荐理由\n" +
-            "2. 价格要在预算范围内，并标注具体金额（人民币）\n" +
-            "3. 优先推荐实用、有情感价值、能体现用心程度的礼物\n" +
-            "4. 参考收礼人最近购买/关注的商品，避免推荐重复品类\n" +
-            "5. 标注每件礼物适合的购买平台（如：京东、淘宝、拼多多、小红书、得物等）\n" +
-            "6. 如有MBTI信息，根据人格类型推荐契合的礼物（如INTJ推荐实用工具，ENFP推荐创意礼物）\n" +
+            "【挑选原则】\n" +
+            "1. 每件礼物都要与 MBTI、性格、兴趣标签、年龄、关系中的至少 2 项深度契合，避免泛泛之物；\n" +
+            "2. 兼顾情感价值与实用性，优先能体现“用心”的礼物，可包含定制款、小众款；\n" +
+            "3. 价格必须落在预算以内，标注人民币金额；\n" +
+            "4. 参考最近购买/关注，避免重复品类，可做有益补充；\n" +
+            "5. 每件标注最契合的购买平台（京东 / 淘宝 / 拼多多 / 得物 / 小红书 等，只填一个平台名）；\n" +
+            "6. 若有 MBTI，按人格特质匹配（如 INTJ 偏好实用工具/高质感，ENFP 偏好创意/体验，ISFJ 偏好温馨实用）；\n" +
+            "7. 推荐理由要具体、走心，结合画像而非套话。\n" +
             "\n" +
-            "请严格按照以下JSON格式返回（不要包含markdown代码块标记）：\n" +
+            "严格按以下 JSON 返回（不要 markdown 代码块、不要多余文字）：\n" +
             "{\n" +
             "  \"gifts\": [\n" +
             "    {\n" +
-            "      \"name\": \"礼物名称\",\n" +
-            "      \"price\": 价格数字(元),\n" +
-            "      \"reason\": \"详细的推荐理由，80-150字，结合MBTI、性格、场景和礼物特点，温暖走心\",\n" +
-            "      \"tags\": [\"匹配标签1\", \"匹配标签2\"],\n" +
-            "      \"platform\": \"推荐购买平台\"\n" +
+            "      \"name\": \"礼物名称（含品牌/型号，便于搜索）\",\n" +
+            "      \"price\": 价格数字,\n" +
+            "      \"reason\": \"80-150 字推荐理由，结合 MBTI/性格/场景/礼物亮点\",\n" +
+            "      \"tags\": [\"匹配点1\", \"匹配点2\"],\n" +
+            "      \"platform\": \"京东|淘宝|拼多多|得物|小红书\"\n" +
             "    }\n" +
             "  ],\n" +
-            "  \"summary\": \"一句话总结推荐策略，50字以内\"\n" +
+            "  \"summary\": \"一句话总结推荐策略，50 字以内\"\n" +
             "}",
             recipient.getName(), relationStr, genderStr, ageStr, mbtiStr, personalityStr, tagStr, purchasesStr, noteStr,
             occasion, budget,
-            extraStr.isEmpty() ? "" : "【额外说明】" + extraStr + "\n",
-            ""
+            extraStr.isEmpty() ? "" : "【额外说明】" + extraStr + "\n"
         );
     }
 
@@ -406,6 +562,64 @@ public class RecommendationService {
         item.setPlatform("京东");
         item.setPlatformUrl("https://www.jd.com");
         item.setReason(reason);
+        item.setImageUrl("");
         return item;
+    }
+
+    // ---------- AI-to-Real-Product Matching ----------
+
+    /**
+     * Match an AI-suggested gift to the best real product in the local database.
+     * Splits the gift name into keywords and searches via LIKE.
+     */
+    private Product matchToRealProduct(AiGift gi) {
+        String keywords = gi.getName().replaceAll("[（(].*?[）)]", "").trim();
+        String[] kwArr = keywords.split("[\\s,，、]+");
+
+        // Try all keyword combinations, descending specificity
+        for (int len = Math.min(kwArr.length, 4); len >= 2; len--) {
+            for (int start = 0; start <= kwArr.length - len; start++) {
+                String searchKw = String.join(" ", java.util.Arrays.copyOfRange(kwArr, start, start + len));
+                if (searchKw.length() < 3) continue;
+
+                LambdaQueryWrapper<Product> wrapper = new LambdaQueryWrapper<Product>()
+                        .eq(Product::getStatus, 1)
+                        .like(Product::getName, searchKw);
+
+                if (gi.getPlatform() != null && !gi.getPlatform().isBlank()) {
+                    wrapper.eq(Product::getPlatform, gi.getPlatform());
+                }
+
+                wrapper.orderByDesc(Product::getSalesCount);
+                List<Product> matches = productMapper.selectList(wrapper);
+                if (!matches.isEmpty()) {
+                    log.info("Matched '{}' → product '{}' on {}", gi.getName(),
+                            matches.get(0).getName(), matches.get(0).getPlatform());
+                    return matches.get(0);
+                }
+            }
+        }
+
+        // Broader search: single longest keyword
+        String longestKw = java.util.Arrays.stream(kwArr)
+                .filter(k -> k.length() >= 2)
+                .max(java.util.Comparator.comparingInt(String::length))
+                .orElse(keywords);
+
+        LambdaQueryWrapper<Product> wrapper = new LambdaQueryWrapper<Product>()
+                .eq(Product::getStatus, 1)
+                .like(Product::getName, longestKw);
+        if (gi.getPlatform() != null && !gi.getPlatform().isBlank()) {
+            wrapper.eq(Product::getPlatform, gi.getPlatform());
+        }
+        wrapper.orderByDesc(Product::getSalesCount);
+        List<Product> matches = productMapper.selectList(wrapper);
+        if (!matches.isEmpty()) {
+            log.info("Broad match '{}' → product '{}'", gi.getName(), matches.get(0).getName());
+            return matches.get(0);
+        }
+
+        log.info("No product match found for: {}", gi.getName());
+        return null;
     }
 }

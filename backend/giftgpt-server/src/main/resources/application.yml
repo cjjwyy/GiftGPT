@@ -48,20 +48,15 @@ giftgpt:
       model: deepseek-chat
   commerce:
     jingdong:
-      app-key: YOUR_JD_APP_KEY
-      app-secret: YOUR_JD_APP_SECRET
-      base-url: https://api.jd.com/routerjson
+      app-key: ${JD_APP_KEY:}
+      app-secret: ${JD_APP_SECRET:}
     taobao:
-      app-key: YOUR_TB_APP_KEY
-      app-secret: YOUR_TB_APP_SECRET
-      base-url: https://eco.taobao.com/router/rest
+      app-key: ${TB_APP_KEY:}
+      app-secret: ${TB_APP_SECRET:}
+      adzone-id: ${TB_ADZONE_ID:}
     pinduoduo:
-      client-id: YOUR_PDD_CLIENT_ID
-      client-secret: YOUR_PDD_CLIENT_SECRET
-      base-url: https://gw-api.pinduoduo.com/api/router
-    serpapi:
-      api-key: YOUR_SERPAPI_KEY
-      base-url: https://serpapi.com/search
+      client-id: ${PDD_CLIENT_ID:}
+      client-secret: ${PDD_CLIENT_SECRET:}
   upload:
     path: ./data/uploads
 

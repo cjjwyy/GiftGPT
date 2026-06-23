@@ -233,3 +233,6 @@ CREATE TABLE IF NOT EXISTS story_like (
 -- Schema drift repairs: ensure columns exist for tables created by older schema versions
 ALTER TABLE story_reply ADD COLUMN IF NOT EXISTS update_time TIMESTAMP;
 ALTER TABLE story_like ADD COLUMN IF NOT EXISTS update_time TIMESTAMP;
+ALTER TABLE recipient ADD COLUMN IF NOT EXISTS mbti VARCHAR(20);
+ALTER TABLE recipient ADD COLUMN IF NOT EXISTS personality VARCHAR(1000);
+ALTER TABLE recipient ADD COLUMN IF NOT EXISTS recent_purchases VARCHAR(1000);
