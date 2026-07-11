@@ -169,3 +169,14 @@ export const enterpriseApi = {
   batchOrder: (data: any) =>
     request<any>('/enterprise/orders/batch', { method: 'POST', body: JSON.stringify(data) }),
 };
+
+// Packaging
+export const packagingApi = {
+  themes: () => request<any[]>('/packaging/themes'),
+  aiRecommend: (data: any) =>
+    request<any>('/packaging/ai-recommend', { method: 'POST', body: JSON.stringify(data) }),
+  save: (data: any) =>
+    request<any>('/packaging/save', { method: 'POST', body: JSON.stringify(data) }),
+  list: (page = 1, size = 10) =>
+    request<any>(`/packaging/list?page=${page}&size=${size}`),
+};

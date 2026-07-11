@@ -15,6 +15,7 @@ export function Navbar() {
     { href: '/', label: '首页' },
     { href: '/recommend', label: '智能推荐' },
     { href: '/products', label: '选品' },
+    { href: '/packaging', label: '包装' },
     { href: '/stories', label: '社区' },
     { href: '/calendar', label: '日历' },
   ];

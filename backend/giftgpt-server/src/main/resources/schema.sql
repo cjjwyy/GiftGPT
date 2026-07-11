@@ -112,7 +112,7 @@ CREATE TABLE IF NOT EXISTS "order" (
 -- Packaging
 CREATE TABLE IF NOT EXISTS packaging (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    order_id BIGINT NOT NULL,
+    order_id BIGINT,
     theme VARCHAR(50),
     custom_text VARCHAR(200),
     preview_image VARCHAR(500),
@@ -237,3 +237,16 @@ ALTER TABLE recommendation_history ADD COLUMN IF NOT EXISTS update_time TIMESTAM
 ALTER TABLE recipient ADD COLUMN IF NOT EXISTS mbti VARCHAR(20);
 ALTER TABLE recipient ADD COLUMN IF NOT EXISTS personality VARCHAR(1000);
 ALTER TABLE recipient ADD COLUMN IF NOT EXISTS recent_purchases VARCHAR(1000);
+
+-- Packaging: support standalone packaging plans (not tied to orders)
+ALTER TABLE packaging ALTER COLUMN order_id SET NULL;
+ALTER TABLE packaging ADD COLUMN IF NOT EXISTS user_id BIGINT;
+ALTER TABLE packaging ADD COLUMN IF NOT EXISTS gift_record_id BIGINT;
+ALTER TABLE packaging ADD COLUMN IF NOT EXISTS product_name VARCHAR(200);
+ALTER TABLE packaging ADD COLUMN IF NOT EXISTS product_price DECIMAL(10,2);
+ALTER TABLE packaging ADD COLUMN IF NOT EXISTS product_image_url VARCHAR(500);
+ALTER TABLE packaging ADD COLUMN IF NOT EXISTS ribbon_text VARCHAR(50);
+ALTER TABLE packaging ADD COLUMN IF NOT EXISTS ribbon_color VARCHAR(10);
+ALTER TABLE packaging ADD COLUMN IF NOT EXISTS scent VARCHAR(20);
+ALTER TABLE packaging ADD COLUMN IF NOT EXISTS photo_url VARCHAR(500);
+ALTER TABLE packaging ADD COLUMN IF NOT EXISTS wrapping_style VARCHAR(30);

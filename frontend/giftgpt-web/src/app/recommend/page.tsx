@@ -160,13 +160,14 @@ function RecommendContent() {
             <p className="text-lg font-medium text-gray-800 dark:text-gray-100 mb-1">为 {result.recipientName} 推荐的礼物</p>
             <p className="text-sm text-gray-500 dark:text-gray-400">{result.summary}</p>
           </div>
-          {result.items?.length ? (
+              {result.items?.length ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {result.items.map((item: any, i: number) => (
                 <GiftCard key={i} productId={item.productId} productName={item.productName}
                   price={item.price} imageUrl={item.imageUrl} platform={item.platform}
                   platformUrl={item.platformUrl}
-                  reason={item.reason} matchTags={item.matchTags} score={item.score} />
+                  reason={item.reason} matchTags={item.matchTags} score={item.score}
+                  recipientName={result.recipientName} recipientId={result.recipientId} occasion={result.occasion} />
               ))}
             </div>
           ) : (

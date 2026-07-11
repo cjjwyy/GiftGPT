@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Gift } from 'lucide-react';
+import { Gift, Package } from 'lucide-react';
 import Link from 'next/link';
 
 interface GiftCardProps {
@@ -14,9 +14,12 @@ interface GiftCardProps {
   reason: string;
   matchTags?: string[];
   score?: number;
+  recipientName?: string;
+  recipientId?: number;
+  occasion?: string;
 }
 
-export function GiftCard({ productId, productName, price, imageUrl, platform, platformUrl, reason, matchTags, score }: GiftCardProps) {
+export function GiftCard({ productId, productName, price, imageUrl, platform, platformUrl, reason, matchTags, score, recipientName, recipientId, occasion }: GiftCardProps) {
   const [imgError, setImgError] = useState(false);
 
   return (
@@ -56,17 +59,23 @@ export function GiftCard({ productId, productName, price, imageUrl, platform, pl
         )}
         <div className="flex items-center justify-between pt-2 border-t border-gray-50 dark:border-gray-800">
           <span className="text-xl font-bold text-rose-500">¥{price}</span>
-          {productId > 0 ? (
-            <Link href={`/products/${productId}`} className="btn-primary text-sm py-1.5 px-4">
-              查看详情
+          <div className="flex flex-col gap-2">
+            <Link
+              href={`/packaging?productName=${encodeURIComponent(productName)}&price=${price}${imageUrl ? `&imageUrl=${encodeURIComponent(imageUrl)}` : ''}${recipientId ? `&recipientId=${recipientId}&recipientName=${encodeURIComponent(recipientName || '')}&occasion=${encodeURIComponent(occasion || '')}` : ''}`}
+              className="btn-outline text-sm py-1.5 px-3 flex items-center justify-center gap-1"
+            >
+              <Package className="w-3.5 h-3.5" /> 包装
             </Link>
-          ) : platformUrl ? (
-            <a href={platformUrl} target="_blank" rel="noopener noreferrer" className="btn-outline text-sm py-1.5 px-4">
-              去购买
-            </a>
-          ) : (
-            <span className="text-xs text-gray-400">暂无详情</span>
-          )}
+            {productId > 0 ? (
+              <Link href={`/products/${productId}`} className="btn-primary text-sm py-1.5 px-4 text-center">
+                查看详情
+              </Link>
+            ) : platformUrl ? (
+              <a href={platformUrl} target="_blank" rel="noopener noreferrer" className="btn-primary text-sm py-1.5 px-4 text-center">
+                去购买
+              </a>
+            ) : null}
+          </div>
         </div>
       </div>
     </div>

@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
+  <rect x="50" y="90" width="100" height="70" rx="4" fill="#fde68a" stroke="#d97706" stroke-width="2"/>
+  <rect x="40" y="105" width="120" height="40" rx="4" fill="#fef3c7" stroke="#ca8a04" stroke-width="2"/>
+  <line x1="50" y1="120" x2="150" y2="120" stroke="#ca8a04" stroke-width="1" opacity="0.4"/>
+  <line x1="60" y1="125" x2="140" y2="125" stroke="#ca8a04" stroke-width="1" opacity="0.3"/>
+  <text x="100" y="130" text-anchor="middle" font-size="10" fill="#a16207" font-family="serif" opacity="0.6">Happy</text>
+</svg>

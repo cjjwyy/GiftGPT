@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { productApi } from '@/lib/api';
 import { Product } from '@/types';
 import { Loading } from '@/components/Loading';
-import { Search, Gift } from 'lucide-react';
+import { Search, Gift, Package } from 'lucide-react';
 import Link from 'next/link';
 
 export default function ProductsPage() {
@@ -104,6 +104,12 @@ function ProductCard({ product }: { product: Product }) {
 
       <div className="flex items-center justify-between mt-auto">
         <span className="text-lg font-bold text-rose-500">¥{product.price}</span>
+        <Link
+          href={`/packaging?productName=${encodeURIComponent(product.name)}&price=${product.price}${product.imageUrl ? `&imageUrl=${encodeURIComponent(product.imageUrl)}` : ''}${product.id ? `&productId=${product.id}` : ''}`}
+          className="btn-outline text-sm py-1.5 px-3 flex items-center gap-1"
+        >
+          <Package className="w-3.5 h-3.5" /> 包装
+        </Link>
       </div>
 
       {(product.rating ?? 0) > 0 && (

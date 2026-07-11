@@ -13,8 +13,18 @@ import java.math.BigDecimal;
 public class Packaging extends BaseEntity {
 
     private Long orderId;
+    private Long userId;
+    private Long giftRecordId;
     private String theme;
     private String customText;
     private String previewImage;
     private BigDecimal price;
+    private String productName;
+    private BigDecimal productPrice;
+    private String productImageUrl;
+    private String ribbonText;
+    private String ribbonColor;
+    private String scent;
+    private String photoUrl;
+    private String wrappingStyle;
 }
