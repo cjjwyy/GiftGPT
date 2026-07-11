@@ -19,16 +19,6 @@ interface GiftCardProps {
 export function GiftCard({ productId, productName, price, imageUrl, platform, platformUrl, reason, matchTags, score }: GiftCardProps) {
   const [imgError, setImgError] = useState(false);
 
-  const platformColor = (p: string) => {
-    switch (p) {
-      case '京东': return 'bg-red-50 text-red-600';
-      case '淘宝': return 'bg-orange-50 text-orange-600';
-      case '拼多多': return 'bg-rose-50 text-rose-600';
-      case '得物': return 'bg-blue-50 text-blue-600';
-      default: return 'bg-gray-100 text-gray-500';
-    }
-  };
-
   return (
     <div className="card hover:shadow-lg transition-all duration-300 hover:-translate-y-1">
       <div className="aspect-square bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 rounded-xl mb-4 flex items-center justify-center overflow-hidden">
@@ -46,8 +36,8 @@ export function GiftCard({ productId, productName, price, imageUrl, platform, pl
       </div>
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <span className={`text-xs px-2 py-0.5 rounded-full ${platformColor(platform || '')}`}>
-            {platform || '综合电商'}
+          <span className="text-xs px-2 py-0.5 rounded-full bg-rose-50 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400">
+            {platform || '拼多多'}
           </span>
           {score !== undefined && score > 0 && (
             <span className="text-xs text-primary-600 bg-primary-50 dark:bg-primary-900/30 dark:text-primary-400 px-2 py-0.5 rounded-full">
@@ -56,7 +46,7 @@ export function GiftCard({ productId, productName, price, imageUrl, platform, pl
           )}
         </div>
         <h3 className="font-semibold text-gray-800 dark:text-gray-100 leading-snug line-clamp-2">{productName}</h3>
-        <p className="text-sm text-gray-500 dark:text-gray-400 line-clamp-2">{reason}</p>
+        <p className="text-sm text-gray-500 dark:text-gray-400 line-clamp-2 cursor-default" title={reason || '为TA精心挑选的礼物'}>{reason || '为TA精心挑选的礼物'}</p>
         {matchTags && matchTags.length > 0 && (
           <div className="flex flex-wrap gap-1">
             {matchTags.slice(0, 4).map(t => (

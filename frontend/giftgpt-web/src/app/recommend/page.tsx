@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { recommendApi, recipientApi } from '@/lib/api';
 import { GiftCard } from '@/components/GiftCard';
 import { Loading } from '@/components/Loading';
-import { Sparkles, Check, Loader2, User, BrainCircuit, Search } from 'lucide-react';
+import { Sparkles, Check, Loader2, User, BrainCircuit, Search, History } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import Link from 'next/link';
 
@@ -22,7 +22,7 @@ interface Step { key: string; label: string; desc: string; icon: any; status: St
 const INITIAL_STEPS: Step[] = [
   { key: 'analyze', label: '分析性格', desc: '解读收礼人 MBTI、兴趣与画像', icon: User, status: 'pending' },
   { key: 'ai', label: 'AI 智能判断礼物', desc: '基于画像与场景生成候选清单', icon: BrainCircuit, status: 'pending' },
-  { key: 'search', label: '各大平台搜索', desc: '在京东/淘宝/拼多多匹配真实商品', icon: Search, status: 'pending' },
+  { key: 'search', label: '拼多多搜索', desc: '在拼多多匹配真实商品', icon: Search, status: 'pending' },
 ];
 
 function RecommendContent() {
@@ -38,6 +38,10 @@ function RecommendContent() {
 
   useEffect(() => {
     recipientApi.list().then(d => setRecipients(d.records || [])).catch(() => {});
+    const saved = sessionStorage.getItem('lastRecommendation');
+    if (saved) {
+      try { setResult(JSON.parse(saved)); } catch {}
+    }
   }, []);
 
   const setStep = (key: string, status: StepStatus) => {
@@ -74,6 +78,7 @@ function RecommendContent() {
       });
       setStep('search', 'done');
       setResult(final);
+      sessionStorage.setItem('lastRecommendation', JSON.stringify(final));
     } catch (err: any) {
       toast.error(err.message || '推荐生成失败');
     } finally {
@@ -86,6 +91,11 @@ function RecommendContent() {
       <div className="text-center mb-10">
         <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">AI 智能礼物推荐</h1>
         <p className="text-gray-500 dark:text-gray-400">选择收礼人、场景和预算，AI 为你精准匹配</p>
+        <div className="mt-3">
+          <Link href="/recommend/history" className="text-sm text-primary-500 hover:text-primary-600 inline-flex items-center gap-1">
+            <History className="w-4 h-4" /> 查看历史记录
+          </Link>
+        </div>
       </div>
 
       <div className="card mb-8">
@@ -155,6 +165,7 @@ function RecommendContent() {
               {result.items.map((item: any, i: number) => (
                 <GiftCard key={i} productId={item.productId} productName={item.productName}
                   price={item.price} imageUrl={item.imageUrl} platform={item.platform}
+                  platformUrl={item.platformUrl}
                   reason={item.reason} matchTags={item.matchTags} score={item.score} />
               ))}
             </div>

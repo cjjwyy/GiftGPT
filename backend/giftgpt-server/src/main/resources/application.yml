@@ -47,13 +47,6 @@ giftgpt:
       base-url: https://api.deepseek.com/v1
       model: deepseek-chat
   commerce:
-    jingdong:
-      app-key: ${JD_APP_KEY:}
-      app-secret: ${JD_APP_SECRET:}
-    taobao:
-      app-key: ${TB_APP_KEY:}
-      app-secret: ${TB_APP_SECRET:}
-      adzone-id: ${TB_ADZONE_ID:}
     pinduoduo:
       client-id: ${PDD_CLIENT_ID:}
       client-secret: ${PDD_CLIENT_SECRET:}

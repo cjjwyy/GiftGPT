@@ -40,14 +40,18 @@ import java.math.BigDecimal;
 import java.net.HttpURLConnection;
 import java.net.URI;
 import java.net.URL;
+import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+import java.util.zip.GZIPInputStream;
+import java.util.zip.GZIPOutputStream;
 
 @Slf4j
 @Service
@@ -255,7 +259,11 @@ public class RecommendationService {
         RecommendItem item = new RecommendItem();
         item.setProductName(gi.getName());
         item.setPrice(BigDecimal.valueOf(gi.getPrice()));
-        item.setReason(gi.getReason());
+        String reason = gi.getReason();
+        if (reason == null || reason.isBlank()) {
+            reason = "送TA这份精选好物";
+        }
+        item.setReason(reason);
         item.setMatchTags(gi.getTags());
         item.setScore(0.90 + Math.random() * 0.10);
 
@@ -266,33 +274,31 @@ public class RecommendationService {
         if (matched != null) {
             item.setProductId(matched.getId());
             item.setImageUrl(matched.getImageUrl() != null ? matched.getImageUrl() : "");
-            item.setPlatform(matched.getPlatform());
-            item.setPlatformUrl(matched.getPlatformUrl() != null ? matched.getPlatformUrl() : "");
+            item.setPlatform(matched.getPlatform() != null ? matched.getPlatform() : "拼多多");
+            String url = matched.getPlatformUrl();
+            if (url == null || url.isBlank()) {
+                url = "https://mobile.yangkeduo.com/search_result.html?search_key="
+                        + URLEncoder.encode(gi.getName(), StandardCharsets.UTF_8);
+            }
+            item.setPlatformUrl(url);
             if (matched.getPrice() != null) {
                 item.setPrice(matched.getPrice());
             }
         } else {
             item.setProductId(-1L);
             item.setImageUrl("");
-            item.setPlatform(gi.getPlatform() != null && !gi.getPlatform().isBlank() ? gi.getPlatform() : "综合电商");
-            item.setPlatformUrl("https://search.jd.com/Search?keyword=" + gi.getName());
+            item.setPlatform("拼多多");
+            item.setPlatformUrl("https://mobile.yangkeduo.com/search_result.html?search_key="
+                    + URLEncoder.encode(gi.getName(), StandardCharsets.UTF_8));
         }
         return item;
     }
 
-    /** Live platform search: look up the AI gift name on the suggested platform (or all platforms). */
+    /** Live platform search: look up the AI gift name on Pinduoduo. */
     private Product searchPlatformForGift(AiGift gi) {
         String keyword = gi.getName().replaceAll("[（(].*?[）)]", "").trim();
         if (keyword.isBlank()) return null;
-        List<Product> found;
-        if (gi.getPlatform() != null && !gi.getPlatform().isBlank()
-                && (gi.getPlatform().contains("京东") || gi.getPlatform().contains("淘宝") || gi.getPlatform().contains("拼多多"))) {
-            String plat = gi.getPlatform().contains("京东") ? "京东"
-                    : gi.getPlatform().contains("淘宝") ? "淘宝" : "拼多多";
-            found = commerceService.searchByPlatform(keyword, plat, 1, 5);
-        } else {
-            found = commerceService.searchAcrossPlatforms(keyword, 1, 5);
-        }
+        List<Product> found = commerceService.searchAcrossPlatforms(keyword, 1, 5);
         if (found == null || found.isEmpty()) return null;
         Product best = pickBestMatch(found, keyword);
         if (best != null) {
@@ -321,12 +327,12 @@ public class RecommendationService {
 
     private List<AiGift> fallbackAiGifts(RecommendRequest request, List<String> tags) {
         List<AiGift> gifts = new ArrayList<>();
-        if (tags.contains("文艺") || tags.contains("文学")) gifts.add(mockGift("手写羊皮卷情书定制礼盒", 129, "结合TA的文艺气质，手写体+复古羊皮纸营造仪式感", "淘宝"));
-        if (tags.contains("摄影") || tags.contains("户外")) gifts.add(mockGift("富士拍立得instax mini 12", 459, "即时记录旅行瞬间，与TA的摄影+户外属性完美契合", "京东"));
-        if (tags.contains("极客") || tags.contains("科技")) gifts.add(mockGift("机械键盘定制键帽套装", 299, "极客属性标配，可自定义配色方案", "京东"));
+        if (tags.contains("文艺") || tags.contains("文学")) gifts.add(mockGift("手写羊皮卷情书定制礼盒", 129, "结合TA的文艺气质，手写体+复古羊皮纸营造仪式感", "拼多多"));
+        if (tags.contains("摄影") || tags.contains("户外")) gifts.add(mockGift("富士拍立得instax mini 12", 459, "即时记录旅行瞬间，与TA的摄影+户外属性完美契合", "拼多多"));
+        if (tags.contains("极客") || tags.contains("科技")) gifts.add(mockGift("机械键盘定制键帽套装", 299, "极客属性标配，可自定义配色方案", "拼多多"));
         if (tags.contains("养生") || tags.contains("健康")) gifts.add(mockGift("智能温控泡脚桶", 199, "养生派首选，智能恒温+多档按摩", "拼多多"));
-        if (tags.contains("音乐") || tags.contains("艺术")) gifts.add(mockGift("黑胶唱片装饰灯", 168, "音乐美学二合一", "淘宝"));
-        gifts.add(mockGift("永生花音乐盒礼盒", 239, "经典浪漫之选", "淘宝"));
+        if (tags.contains("音乐") || tags.contains("艺术")) gifts.add(mockGift("黑胶唱片装饰灯", 168, "音乐美学二合一", "拼多多"));
+        gifts.add(mockGift("永生花音乐盒礼盒", 239, "经典浪漫之选", "拼多多"));
         gifts.add(mockGift("北欧极简香薰蜡烛礼盒", 89, "营造温馨氛围", "拼多多"));
         return gifts.stream()
                 .filter(g -> BigDecimal.valueOf(g.getPrice()).compareTo(request.getBudget()) <= 0)
@@ -350,8 +356,41 @@ public class RecommendationService {
         history.setRecipientId(recipientId);
         history.setScene(occasion);
         history.setBudget(budget);
-        history.setResult(JSONUtil.toJsonStr(response));
+        history.setResult(compress(JSONUtil.toJsonStr(response)));
         historyMapper.insert(history);
+    }
+
+    private static String compress(String data) {
+        try (ByteArrayOutputStream bos = new ByteArrayOutputStream();
+             GZIPOutputStream gzip = new GZIPOutputStream(bos)) {
+            gzip.write(data.getBytes(StandardCharsets.UTF_8));
+            gzip.finish();
+            return Base64.getEncoder().encodeToString(bos.toByteArray());
+        } catch (IOException e) {
+            log.warn("Compression failed, storing raw JSON", e);
+            return data;
+        }
+    }
+
+    private static String decompress(String compressed) {
+        if (compressed == null || compressed.isEmpty()) return null;
+        // If not Base64-encoded GZIP (old data), return as-is
+        byte[] bytes;
+        try {
+            bytes = Base64.getDecoder().decode(compressed);
+        } catch (IllegalArgumentException e) {
+            return compressed;
+        }
+        try (ByteArrayInputStream bis = new ByteArrayInputStream(bytes);
+             GZIPInputStream gzip = new GZIPInputStream(bis);
+             InputStreamReader reader = new InputStreamReader(gzip, StandardCharsets.UTF_8);
+             StringWriter writer = new StringWriter()) {
+            reader.transferTo(writer);
+            return writer.toString();
+        } catch (IOException e) {
+            log.warn("Decompression failed", e);
+            return compressed;
+        }
     }
 
     // ---------- Prompt Engineering ----------
@@ -372,8 +411,8 @@ public class RecommendationService {
         String extraStr = extraNote != null && !extraNote.isBlank() ? extraNote : "";
 
         return String.format(
-            "你是一位资深的礼物推荐顾问，擅长从收礼人的性格、兴趣与关系出发，挑选既有情感温度又实用的礼物。\n" +
-            "请基于下方画像，在指定场景和预算内，推荐 5-8 件最合适的礼物。\n" +
+            "你是一位温暖细腻的礼物推荐顾问，擅长从收礼人的全部画像出发，挑选既有情感温度又贴合适用的礼物。\n" +
+            "请基于下方收礼人的完整画像，在指定场景和预算内，推荐 5-8 件最合适的礼物。\n" +
             "\n" +
             "【收礼人画像】\n" +
             "- 姓名：%s\n" +
@@ -387,17 +426,17 @@ public class RecommendationService {
             "- 备注：%s\n" +
             "\n" +
             "【送礼场景】%s\n" +
-            "【预算上限】¥%s\n" +
+            "【预算】¥%s（推荐价格应在预算的60%%-100%%之间，不要远低于预算）\n" +
             "%s" +
             "\n" +
             "【挑选原则】\n" +
-            "1. 每件礼物都要与 MBTI、性格、兴趣标签、年龄、关系中的至少 2 项深度契合，避免泛泛之物；\n" +
+            "1. 综合考量收礼人的关系、性别、年龄段、MBTI、性格特点、兴趣标签、最近购买/关注、备注等全部画像信息，每件礼物至少与其中 3 项深度契合，避免泛泛之物；\n" +
             "2. 兼顾情感价值与实用性，优先能体现“用心”的礼物，可包含定制款、小众款；\n" +
-            "3. 价格必须落在预算以内，标注人民币金额；\n" +
+            "3. 价格应尽量接近预算（在预算的60%-100%之间），不要推荐远低于预算的廉价品，也不要超出预算；\n" +
             "4. 参考最近购买/关注，避免重复品类，可做有益补充；\n" +
-            "5. 每件标注最契合的购买平台（京东 / 淘宝 / 拼多多 / 得物 / 小红书 等，只填一个平台名）；\n" +
+            "5. 每件标注购买平台为拼多多；\n" +
             "6. 若有 MBTI，按人格特质匹配（如 INTJ 偏好实用工具/高质感，ENFP 偏好创意/体验，ISFJ 偏好温馨实用）；\n" +
-            "7. 推荐理由要具体、走心，结合画像而非套话。\n" +
+            "7. 推荐理由须在25字以内，以\"动词+称谓\"开头（如\"让妈妈\"\"给朋友\"\"送TA\"），语言柔和温暖，让收礼人感受到被理解与珍视。\n" +
             "\n" +
             "严格按以下 JSON 返回（不要 markdown 代码块、不要多余文字）：\n" +
             "{\n" +
@@ -405,9 +444,9 @@ public class RecommendationService {
             "    {\n" +
             "      \"name\": \"礼物名称（含品牌/型号，便于搜索）\",\n" +
             "      \"price\": 价格数字,\n" +
-            "      \"reason\": \"80-150 字推荐理由，结合 MBTI/性格/场景/礼物亮点\",\n" +
+            "      \"reason\": \"25字以内推荐理由，以动词+称谓开头，如：送妈妈一束永生花\",\n" +
             "      \"tags\": [\"匹配点1\", \"匹配点2\"],\n" +
-            "      \"platform\": \"京东|淘宝|拼多多|得物|小红书\"\n" +
+            "      \"platform\": \"拼多多\"\n" +
             "    }\n" +
             "  ],\n" +
             "  \"summary\": \"一句话总结推荐策略，50 字以内\"\n" +
@@ -442,7 +481,7 @@ public class RecommendationService {
         List<DeepseekMessage> messages = new ArrayList<>();
         DeepseekMessage sysMsg = new DeepseekMessage();
         sysMsg.setRole("system");
-        sysMsg.setContent("你是一个专业的礼物推荐AI助手。你总是以JSON格式回复，不添加任何额外的解释或markdown标记。你推荐的礼物贴近生活、实用且有情感价值。");
+        sysMsg.setContent("你是一位温暖细腻的礼物推荐AI助手。你总是以JSON格式回复，不添加任何额外的解释或markdown标记。你推荐的礼物贴近生活、实用且有情感价值，语言柔和温暖，善于用收礼人的称谓让每份推荐都更有温度。");
         messages.add(sysMsg);
 
         DeepseekMessage userMsg = new DeepseekMessage();
@@ -502,17 +541,48 @@ public class RecommendationService {
     public Page<RecommendationHistory> history(int page, int size) {
         Long userId = StpUtil.getLoginIdAsLong();
         Page<RecommendationHistory> p = new Page<>(page, size);
-        return historyMapper.selectPage(p,
+        Page<RecommendationHistory> result = historyMapper.selectPage(p,
                 new LambdaQueryWrapper<RecommendationHistory>()
                         .eq(RecommendationHistory::getUserId, userId)
                         .orderByDesc(RecommendationHistory::getCreateTime));
+        // Strip the heavy result field for list view
+        result.getRecords().forEach(h -> h.setResult(null));
+        return result;
+    }
+
+    public RecommendResponse getHistoryDetail(Long id) {
+        Long userId = StpUtil.getLoginIdAsLong();
+        RecommendationHistory history = historyMapper.selectById(id);
+        if (history == null || !history.getUserId().equals(userId)) {
+            throw new BusinessException(ResultCode.NOT_FOUND);
+        }
+        String json = decompress(history.getResult());
+        if (json == null) return null;
+        try {
+            return JSONUtil.toBean(json, RecommendResponse.class);
+        } catch (Exception e) {
+            log.error("Failed to parse history detail", e);
+            return null;
+        }
     }
 
     public void feedback(Long id, RecommendFeedbackRequest request) {
+        Long userId = StpUtil.getLoginIdAsLong();
         RecommendationHistory history = historyMapper.selectById(id);
-        if (history != null) {
-            history.setFeedback(request.getFeedback());
-            historyMapper.updateById(history);
+        if (history == null || !history.getUserId().equals(userId)) {
+            throw new BusinessException(ResultCode.NOT_FOUND);
+        }
+        history.setFeedback(request.getFeedback());
+        historyMapper.updateById(history);
+    }
+
+    public void deleteHistories(List<Long> ids) {
+        Long userId = StpUtil.getLoginIdAsLong();
+        for (Long id : ids) {
+            RecommendationHistory history = historyMapper.selectById(id);
+            if (history != null && history.getUserId().equals(userId)) {
+                historyMapper.deleteById(id);
+            }
         }
     }
 
@@ -545,7 +615,6 @@ public class RecommendationService {
         items.add(buildItem(10L, "永生花音乐盒礼盒", new BigDecimal("239.00"), "经典浪漫之选"));
         items.add(buildItem(11L, "定制名字925银项链", new BigDecimal("189.00"), "个性化定制"));
         items.add(buildItem(12L, "北欧极简香薰蜡烛礼盒", new BigDecimal("89.00"), "营造温馨氛围"));
-
         return items.stream()
                 .filter(item -> item.getPrice().compareTo(request.getBudget()) <= 0)
                 .peek(item -> item.setScore(0.80 + Math.random() * 0.20))
@@ -559,8 +628,8 @@ public class RecommendationService {
         item.setProductId(id);
         item.setProductName(name);
         item.setPrice(price);
-        item.setPlatform("京东");
-        item.setPlatformUrl("https://www.jd.com");
+        item.setPlatform("拼多多");
+        item.setPlatformUrl("https://mobile.yangkeduo.com/search_result.html?search_key=" + name);
         item.setReason(reason);
         item.setImageUrl("");
         return item;

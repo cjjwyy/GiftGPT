@@ -18,16 +18,6 @@ export default function ProductDetailPage() {
 
   if (!product) return <Loading />;
 
-  const platformColor = (p: string) => {
-    switch (p) {
-      case '京东': return 'bg-red-50 text-red-600';
-      case '淘宝': return 'bg-orange-50 text-orange-600';
-      case '拼多多': return 'bg-rose-50 text-rose-600';
-      case '得物': return 'bg-blue-50 text-blue-600';
-      default: return 'bg-gray-50 text-gray-600';
-    }
-  };
-
   const ratingStars = product.rating ? Math.round(product.rating) : 0;
 
   return (
@@ -52,7 +42,7 @@ export default function ProductDetailPage() {
         <div className="space-y-4">
           <div>
             {product.platform && (
-              <span className={`text-xs px-2 py-0.5 rounded-full mb-2 inline-block ${platformColor(product.platform)}`}>
+              <span className="text-xs px-2 py-0.5 rounded-full mb-2 inline-block bg-rose-50 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400">
                 {product.platform}
               </span>
             )}

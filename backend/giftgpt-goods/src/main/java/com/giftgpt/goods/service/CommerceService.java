@@ -9,11 +9,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeUnit;
 
 /**
- * Unified commerce facade that dispatches to platform-specific API services.
+ * Commerce facade that dispatches to Pinduoduo API service.
  */
 @Slf4j
 @Service
@@ -21,48 +19,28 @@ import java.util.concurrent.TimeUnit;
 public class CommerceService {
 
     private final ProductMapper productMapper;
-    private final JdUnionService jdUnionService;
-    private final TbkService tbkService;
     private final PddService pddService;
 
     /**
-     * Search all available platforms in parallel.
+     * Search Pinduoduo for products matching the keyword.
      */
     public List<Product> searchAcrossPlatforms(String keyword, int page, int size) {
         if (keyword == null || keyword.isBlank()) return Collections.emptyList();
 
-        CompletableFuture<List<Product>> jd = CompletableFuture.supplyAsync(
-                () -> jdUnionService.searchGoods(keyword, page, size));
-        CompletableFuture<List<Product>> tb = CompletableFuture.supplyAsync(
-                () -> tbkService.searchGoods(keyword, page, size));
-        CompletableFuture<List<Product>> pdd = CompletableFuture.supplyAsync(
-                () -> pddService.searchGoods(keyword, page, size));
-
+        List<Product> apiResults = pddService.searchGoods(keyword, page, size);
         List<Product> all = new ArrayList<>();
-        all.addAll(safeGet(jd, 15));
-        all.addAll(safeGet(tb, 15));
-        all.addAll(safeGet(pdd, 15));
-
-        // Cache results in local DB
-        for (Product p : all) {
-            try { saveProduct(p); } catch (Exception ignored) {}
+        for (Product p : apiResults) {
+            try { all.add(saveProduct(p)); } catch (Exception ignored) {}
         }
-
         return all;
     }
 
     /**
-     * Search a specific platform only.
+     * Search a specific platform only (only 拼多多 supported).
      */
     public List<Product> searchByPlatform(String keyword, String platform, int page, int size) {
         if (keyword == null || keyword.isBlank()) return Collections.emptyList();
-        List<Product> result;
-        switch (platform) {
-            case "京东": result = jdUnionService.searchGoods(keyword, page, size); break;
-            case "淘宝": result = tbkService.searchGoods(keyword, page, size); break;
-            case "拼多多": result = pddService.searchGoods(keyword, page, size); break;
-            default: result = searchAcrossPlatforms(keyword, page, size);
-        }
+        List<Product> result = pddService.searchGoods(keyword, page, size);
         for (Product p : result) {
             try { saveProduct(p); } catch (Exception ignored) {}
         }
@@ -108,14 +86,5 @@ public class CommerceService {
         }
         wrapper.orderByDesc(Product::getSalesCount);
         return productMapper.selectPage(p, wrapper).getRecords();
-    }
-
-    private static List<Product> safeGet(CompletableFuture<List<Product>> future, int timeoutSeconds) {
-        try {
-            return future.get(timeoutSeconds, TimeUnit.SECONDS);
-        } catch (Exception e) {
-            log.warn("Platform API call failed or timed out: {}", e.getMessage());
-            return Collections.emptyList();
-        }
     }
 }

@@ -96,6 +96,10 @@ export const recommendApi = {
     request<any>('/recommendations/match', { method: 'POST', body: JSON.stringify(data) }),
   history: (page = 1, size = 10) =>
     request<any>(`/recommendations/history?page=${page}&size=${size}`),
+  historyDetail: (id: number) =>
+    request<any>(`/recommendations/history/${id}`),
+  deleteHistory: (ids: number[]) =>
+    request<void>(`/recommendations/history`, { method: 'DELETE', body: JSON.stringify({ ids }) }),
   feedback: (id: number, feedback: string) =>
     request<void>(`/recommendations/${id}/feedback`, {
       method: 'POST',

@@ -16,6 +16,7 @@ import javax.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.Map;
 
 @Tag(name = "AI 礼物推荐", description = "条件检索推荐、历史记录、反馈")
@@ -58,10 +59,23 @@ public class RecommendationController {
         return Result.ok(recommendationService.history(page, size));
     }
 
+    @Operation(summary = "历史推荐详情")
+    @GetMapping("/history/{id}")
+    public Result<RecommendResponse> historyDetail(@PathVariable Long id) {
+        return Result.ok(recommendationService.getHistoryDetail(id));
+    }
+
     @Operation(summary = "推荐反馈")
     @PostMapping("/{id}/feedback")
     public Result<Void> feedback(@PathVariable Long id, @RequestBody RecommendFeedbackRequest request) {
         recommendationService.feedback(id, request);
+        return Result.ok();
+    }
+
+    @Operation(summary = "批量删除历史记录")
+    @DeleteMapping("/history")
+    public Result<Void> deleteHistory(@RequestBody Map<String, List<Long>> body) {
+        recommendationService.deleteHistories(body.get("ids"));
         return Result.ok();
     }
 }
