@@ -76,7 +76,7 @@ public class ProductService {
             }
             Page<Product> mergedPage = new Page<>(page, size);
             mergedPage.setRecords(merged);
-            mergedPage.setTotal(merged.size());
+            mergedPage.setTotal((long) externalProducts.size() + dbResult.getTotal());
             return mergedPage;
         }
 
