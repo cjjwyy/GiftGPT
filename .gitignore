@@ -101,6 +101,10 @@ reg.json
 # --- Detailed docs ---
 README(detailed).md
 
+# --- SDD infrastructure (subagent-driven-dev working files) ---
+.superpowers/
+docs/superpowers/
+
 # Playwright
 /test-results/
 /playwright-report/
