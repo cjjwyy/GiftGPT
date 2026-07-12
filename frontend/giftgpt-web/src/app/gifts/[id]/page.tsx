@@ -11,9 +11,14 @@ export default function GiftDetailPage() {
   const id = Number(params.id);
   const [gift, setGift] = useState<any>(null);
   const [err, setErr] = useState(false);
+  const [logi, setLogi] = useState<any>(null);
 
   useEffect(() => {
     giftApi.get(id).then(setGift).catch(() => setErr(true));
+  }, [id]);
+
+  useEffect(() => {
+    giftApi.logistics(id).then(setLogi).catch(() => setLogi(null));
   }, [id]);
 
   if (err) return (
@@ -45,6 +50,19 @@ export default function GiftDetailPage() {
           <span>{gift.createTime}</span>
         </div>
       </div>
+      {logi && logi.events && logi.events.length > 0 && (
+        <div className="card mt-4">
+          <h2 className="font-semibold text-gray-900 dark:text-white mb-4">物流追踪</h2>
+          <ol className="relative border-l border-gray-200 dark:border-gray-700 ml-3 space-y-4">
+            {logi.events.map((e: any, i: number) => (
+              <li key={i} className="ml-4">
+                <p className="text-sm font-medium text-gray-800 dark:text-gray-100">{e.description}</p>
+                <p className="text-xs text-gray-400">{e.eventTime} · {e.location} · {e.status}</p>
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
     </div>
   );
 }

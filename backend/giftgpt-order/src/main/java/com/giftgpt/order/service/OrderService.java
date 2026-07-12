@@ -9,10 +9,12 @@ import com.giftgpt.common.result.ResultCode;
 import com.giftgpt.order.dto.*;
 import com.giftgpt.order.entity.Feedback;
 import com.giftgpt.order.entity.GreetingCard;
+import com.giftgpt.order.entity.LogisticsEvent;
 import com.giftgpt.order.entity.Order;
 import com.giftgpt.order.entity.Packaging;
 import com.giftgpt.order.mapper.FeedbackMapper;
 import com.giftgpt.order.mapper.GreetingCardMapper;
+import com.giftgpt.order.mapper.LogisticsEventMapper;
 import com.giftgpt.order.mapper.OrderMapper;
 import com.giftgpt.order.mapper.PackagingMapper;
 import com.giftgpt.user.entity.GiftRecord;
@@ -25,8 +27,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -39,6 +44,7 @@ public class OrderService {
     private final FeedbackMapper feedbackMapper;
     private final GiftRecordMapper giftRecordMapper;
     private final RecipientMapper recipientMapper;
+    private final LogisticsEventMapper logisticsEventMapper;
     private final PythonAiClient pythonAiClient;
 
     @Transactional
@@ -67,6 +73,8 @@ public class OrderService {
 
         giftRecord.setStatus("ordered");
         giftRecordMapper.updateById(giftRecord);
+
+        insertMockLogisticsEvents(order.getId());
 
         return order;
     }
@@ -102,12 +110,28 @@ public class OrderService {
         return resp;
     }
 
-    public Order getLogistics(Long id) {
-        Order order = orderMapper.selectById(id);
-        if (order == null) {
-            throw new BusinessException(ResultCode.ORDER_NOT_FOUND);
-        }
-        return order;
+    public LogisticsResponse getLogistics(Long giftRecordId) {
+        Order order = orderMapper.selectOne(
+            new LambdaQueryWrapper<Order>().eq(Order::getGiftRecordId, giftRecordId));
+        if (order == null) throw new BusinessException(ResultCode.ORDER_NOT_FOUND);
+        LogisticsResponse resp = new LogisticsResponse();
+        resp.setOrderNo(order.getOrderNo());
+        resp.setStatus(order.getStatus());
+        resp.setLogisticsNo(order.getLogisticsNo());
+        resp.setLogisticsCompany(order.getLogisticsCompany());
+        List<LogisticsEvent> evs = logisticsEventMapper.selectList(
+            new LambdaQueryWrapper<LogisticsEvent>()
+                .eq(LogisticsEvent::getOrderId, order.getId())
+                .orderByAsc(LogisticsEvent::getEventTime));
+        resp.setEvents(evs.stream().map(e -> {
+            LogisticsResponse.Event ev = new LogisticsResponse.Event();
+            ev.setEventTime(e.getEventTime() == null ? "" : e.getEventTime().toString());
+            ev.setLocation(e.getLocation());
+            ev.setStatus(e.getStatus());
+            ev.setDescription(e.getDescription());
+            return ev;
+        }).collect(Collectors.toList()));
+        return resp;
     }
 
     public GreetingResponse generateGreeting(GreetingGenerateRequest request) {
@@ -136,6 +160,26 @@ public class OrderService {
         feedback.setGiftRecordId(giftRecordId);
         feedbackMapper.insert(feedback);
         return feedback;
+    }
+
+    private void insertMockLogisticsEvents(Long orderId) {
+        LocalDateTime now = LocalDateTime.now();
+        List<LogisticsEvent> evs = List.of(
+            buildEvent(orderId, now.minusDays(2), "上海仓", "已下单", "订单已创建，等待发货"),
+            buildEvent(orderId, now.minusDays(1), "上海转运中心", "已发货", "包裹已从仓库发出"),
+            buildEvent(orderId, now, "运输中", "运输中", "包裹运往目的地")
+        );
+        evs.forEach(logisticsEventMapper::insert);
+    }
+
+    private LogisticsEvent buildEvent(Long orderId, LocalDateTime t, String loc, String st, String desc) {
+        LogisticsEvent e = new LogisticsEvent();
+        e.setOrderId(orderId);
+        e.setEventTime(t);
+        e.setLocation(loc);
+        e.setStatus(st);
+        e.setDescription(desc);
+        return e;
     }
 
     private String generateMockGreeting(GreetingGenerateRequest request) {

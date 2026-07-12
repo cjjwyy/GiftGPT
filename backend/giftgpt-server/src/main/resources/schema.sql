@@ -250,3 +250,14 @@ ALTER TABLE packaging ADD COLUMN IF NOT EXISTS ribbon_color VARCHAR(10);
 ALTER TABLE packaging ADD COLUMN IF NOT EXISTS scent VARCHAR(20);
 ALTER TABLE packaging ADD COLUMN IF NOT EXISTS photo_url VARCHAR(500);
 ALTER TABLE packaging ADD COLUMN IF NOT EXISTS wrapping_style VARCHAR(30);
+
+-- Logistics tracking events (Task T2)
+CREATE TABLE IF NOT EXISTS logistics_event (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    order_id BIGINT NOT NULL,
+    event_time TIMESTAMP NOT NULL,
+    location VARCHAR(100),
+    status VARCHAR(30),
+    description VARCHAR(255),
+    create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);

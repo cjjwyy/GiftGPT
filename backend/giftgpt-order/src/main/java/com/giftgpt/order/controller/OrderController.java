@@ -28,7 +28,7 @@ public class OrderController {
 
     @Operation(summary = "物流追踪")
     @GetMapping("/gifts/{id}/logistics")
-    public Result<Order> logistics(@PathVariable Long id) {
+    public Result<LogisticsResponse> logistics(@PathVariable Long id) {
         return Result.ok(orderService.getLogistics(id));
     }
 
