@@ -30,7 +30,7 @@ public class CommerceService {
         List<Product> apiResults = pddService.searchGoods(keyword, page, size);
         List<Product> all = new ArrayList<>();
         for (Product p : apiResults) {
-            try { all.add(saveProduct(p)); } catch (Exception ignored) {}
+            try { all.add(saveProduct(p)); } catch (Exception e) { log.warn("saveProduct failed: {} / {}", p.getName(), p.getPlatform(), e); }
         }
         return all;
     }
@@ -42,7 +42,7 @@ public class CommerceService {
         if (keyword == null || keyword.isBlank()) return Collections.emptyList();
         List<Product> result = pddService.searchGoods(keyword, page, size);
         for (Product p : result) {
-            try { saveProduct(p); } catch (Exception ignored) {}
+            try { saveProduct(p); } catch (Exception e) { log.warn("saveProduct failed: {} / {}", p.getName(), p.getPlatform(), e); }
         }
         return result;
     }
