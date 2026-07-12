@@ -132,4 +132,25 @@ public class ContentService {
         calendarEventMapper.insert(event);
         return event;
     }
+
+    public CalendarEvent updateCalendarEvent(Long id, CalendarEvent event) {
+        Long userId = StpUtil.getLoginIdAsLong();
+        CalendarEvent exist = calendarEventMapper.selectById(id);
+        if (exist == null) throw new BusinessException(ResultCode.NOT_FOUND);
+        if (!exist.getUserId().equals(userId)) throw new BusinessException(ResultCode.FORBIDDEN);
+        exist.setTitle(event.getTitle());
+        exist.setEventDate(event.getEventDate());
+        exist.setOccasion(event.getOccasion());
+        exist.setRemindBeforeDays(event.getRemindBeforeDays());
+        calendarEventMapper.updateById(exist);
+        return exist;
+    }
+
+    public void deleteCalendarEvent(Long id) {
+        Long userId = StpUtil.getLoginIdAsLong();
+        CalendarEvent exist = calendarEventMapper.selectById(id);
+        if (exist == null) throw new BusinessException(ResultCode.NOT_FOUND);
+        if (!exist.getUserId().equals(userId)) throw new BusinessException(ResultCode.FORBIDDEN);
+        calendarEventMapper.deleteById(id);
+    }
 }

@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { calendarApi } from '@/lib/api';
 import { CalendarEvent, PageData } from '@/types';
 import { Loading } from '@/components/Loading';
-import { CalendarDays, Plus, X, Bell, Trash2 } from 'lucide-react';
+import { CalendarDays, Plus, X, Bell, Trash2, Pencil } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
 const OCCASIONS = ['生日', '纪念日', '情人节', '母亲节', '父亲节', '教师节', '圣诞节', '春节', '自定义'];
@@ -15,6 +15,7 @@ export default function CalendarPage() {
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
   const [form, setForm] = useState<CalendarEvent>({
     title: '',
     occasion: '',
@@ -39,13 +40,24 @@ export default function CalendarPage() {
 
   useEffect(() => { fetchEvents(); }, []);
 
+  const startEdit = (e: CalendarEvent) => {
+    setEditingId(e.id!);
+    setForm({ title: e.title, occasion: e.occasion, eventDate: e.eventDate, remindBeforeDays: e.remindBeforeDays, recipientId: e.recipientId });
+    setShowForm(true);
+  };
+
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.title.trim()) { toast.error('请输入事件标题'); return; }
     if (!form.eventDate) { toast.error('请选择日期'); return; }
     try {
-      await calendarApi.create(form);
-      toast.success('日历事件已添加');
+      if (editingId) {
+        await calendarApi.update(editingId, form);
+        setEditingId(null);
+      } else {
+        await calendarApi.create(form);
+      }
+      toast.success(editingId ? '日历事件已更新' : '日历事件已添加');
       setShowForm(false);
       setForm({ title: '', occasion: '', eventDate: '', remindBeforeDays: 3, recipientId: undefined });
       fetchEvents();
@@ -80,7 +92,7 @@ export default function CalendarPage() {
         <div className="card mb-8">
           <div className="flex items-center justify-between mb-4">
             <h2 className="font-semibold text-gray-800 dark:text-gray-200">新建日历事件</h2>
-            <button onClick={() => setShowForm(false)} className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-200">
+            <button onClick={() => { setShowForm(false); setEditingId(null); }} className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-200">
               <X className="w-5 h-5" />
             </button>
           </div>
@@ -144,9 +156,15 @@ export default function CalendarPage() {
                       </p>
                     </div>
                   </div>
-                  <button className="text-gray-400 dark:text-gray-500 hover:text-rose-500 transition-colors">
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                  <div className="flex gap-2">
+                    <button onClick={() => startEdit(e)} className="text-gray-400 hover:text-primary-500 transition-colors">
+                      <Pencil className="w-4 h-4" />
+                    </button>
+                    <button onClick={() => { if (confirm('确认删除此提醒？')) { calendarApi.delete(e.id!).then(fetchEvents).catch((err: any) => toast.error(err.message)); } }}
+                      className="text-gray-400 hover:text-rose-500 transition-colors">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>

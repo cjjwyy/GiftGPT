@@ -159,6 +159,10 @@ export const calendarApi = {
     request<any>(`/calendar?page=${page}&size=${size}`),
   create: (data: any) =>
     request<any>('/calendar', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: number, data: any) =>
+    request<any>(`/calendar/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  delete: (id: number) =>
+    request<void>(`/calendar/${id}`, { method: 'DELETE' }),
 };
 
 // Enterprise

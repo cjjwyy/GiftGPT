@@ -75,4 +75,17 @@ public class ContentController {
     public Result<CalendarEvent> createCalendarEvent(@RequestBody CalendarEvent event) {
         return Result.ok(contentService.createCalendarEvent(event));
     }
+
+    @Operation(summary = "编辑日历提醒")
+    @PutMapping("/calendar/{id}")
+    public Result<CalendarEvent> updateCalendarEvent(@PathVariable Long id, @RequestBody CalendarEvent event) {
+        return Result.ok(contentService.updateCalendarEvent(id, event));
+    }
+
+    @Operation(summary = "删除日历提醒")
+    @DeleteMapping("/calendar/{id}")
+    public Result<Void> deleteCalendarEvent(@PathVariable Long id) {
+        contentService.deleteCalendarEvent(id);
+        return Result.ok();
+    }
 }
