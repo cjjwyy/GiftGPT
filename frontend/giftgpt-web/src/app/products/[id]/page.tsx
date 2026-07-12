@@ -4,18 +4,26 @@ import { useState, useEffect } from 'react';
 import { productApi } from '@/lib/api';
 import { useParams } from 'next/navigation';
 import { Loading } from '@/components/Loading';
+import Link from 'next/link';
 import { Gift, ExternalLink, Star, ShoppingBag } from 'lucide-react';
 
 export default function ProductDetailPage() {
   const params = useParams();
   const id = Number(params.id);
   const [product, setProduct] = useState<any>(null);
+  const [err, setErr] = useState(false);
   const [imgError, setImgError] = useState(false);
 
   useEffect(() => {
-    productApi.get(id).then(setProduct).catch(() => {});
+    productApi.get(id).then(setProduct).catch(() => setErr(true));
   }, [id]);
 
+  if (err) return (
+    <div className="max-w-2xl mx-auto px-4 py-20 text-center text-gray-400">
+      商品不存在或已下架<br/>
+      <Link href="/products" className="text-primary-500">返回选品</Link>
+    </div>
+  );
   if (!product) return <Loading />;
 
   const ratingStars = product.rating ? Math.round(product.rating) : 0;

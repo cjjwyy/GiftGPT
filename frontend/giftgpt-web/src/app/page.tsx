@@ -16,7 +16,7 @@ export default function HomePage() {
               不猜，<span className="text-transparent bg-clip-text bg-gradient-to-r from-primary-500 to-rose-500">更懂TA的心意</span>
             </h1>
             <p className="text-lg sm:text-xl text-gray-500 dark:text-gray-400 mb-10 max-w-xl mx-auto leading-relaxed">
-              消除"不知道送什么"的焦虑，让每一份礼物都恰到好处。
+              消除&ldquo;不知道送什么&rdquo;的焦虑，让每一份礼物都恰到好处。
               <br className="hidden sm:block" />
               基于AI性格匹配 + 场景分析，一键获得专属礼物清单。
             </p>
