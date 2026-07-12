@@ -63,6 +63,7 @@ public class RecommendationService {
     private final RecommendationHistoryMapper historyMapper;
     private final ProductMapper productMapper;
     private final CommerceService commerceService;
+    private final KnowledgeGraphService knowledgeGraphService;
 
     @Value("${giftgpt.ai.deepseek.api-key}")
     private String apiKey;
@@ -201,6 +202,37 @@ public class RecommendationService {
                 log.warn("Build item failed: {}", e.getMessage());
             }
         }
+
+        // KG enhancement: independent path, merge and deduplicate
+        // Main chain stays as-is (DeepSeek 3-step), KG only adds reason-backed items
+        if (knowledgeGraphService.isEnabled()) {
+            List<RecommendItem> kgItems = knowledgeGraphService.queryRecommendations(
+                    request.getRecipientId(), request.getOccasion(), request.getBudget());
+            for (RecommendItem kgItem : kgItems) {
+                // Fill platformUrl from local DB product
+                if (kgItem.getProductId() != null && kgItem.getProductId() > 0) {
+                    Product prod = productMapper.selectById(kgItem.getProductId());
+                    if (prod != null) {
+                        kgItem.setPlatformUrl(prod.getPlatformUrl() != null ? prod.getPlatformUrl() : "");
+                        if (prod.getImageUrl() != null && !prod.getImageUrl().isEmpty()) {
+                            kgItem.setImageUrl(prod.getImageUrl());
+                        }
+                    }
+                }
+                // Avoid duplicate: skip if an AI item has the same productId
+                boolean dup = items.stream().anyMatch(ai ->
+                        ai.getProductId() != null && ai.getProductId().equals(kgItem.getProductId()));
+                if (!dup) items.add(kgItem);
+            }
+            log.info("KG enhancement added {} items (total now {})", kgItems.size(), items.size());
+        }
+
+        // Sort: KG items (with reasoningChain) last, or by score descending
+        items.sort((a, b) -> {
+            double sa = a.getScore() != null ? a.getScore() : 0;
+            double sb = b.getScore() != null ? b.getScore() : 0;
+            return Double.compare(sb, sa);
+        });
 
         RecommendResponse response = new RecommendResponse();
         response.setRecipientId(recipient.getId());

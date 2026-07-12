@@ -17,4 +17,5 @@ public class RecommendItem {
     private Double score;
     private String reason;
     private List<String> matchTags;
+    private String reasoningChain;
 }

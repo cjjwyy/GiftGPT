@@ -100,3 +100,10 @@ reg.json
 
 # --- Detailed docs ---
 README(detailed).md
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+/playwright/.auth/

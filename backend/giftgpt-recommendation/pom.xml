@@ -10,5 +10,10 @@
         <dependency><groupId>com.giftgpt</groupId><artifactId>giftgpt-common</artifactId></dependency>
         <dependency><groupId>com.giftgpt</groupId><artifactId>giftgpt-user</artifactId></dependency>
         <dependency><groupId>com.giftgpt</groupId><artifactId>giftgpt-goods</artifactId></dependency>
+        <dependency>
+            <groupId>org.neo4j.driver</groupId>
+            <artifactId>neo4j-java-driver</artifactId>
+            <version>5.20.0</version>
+        </dependency>
     </dependencies>
 </project>

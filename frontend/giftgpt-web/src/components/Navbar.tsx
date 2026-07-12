@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { useTheme } from '@/components/ThemeProvider';
 import { Gift, Menu, X, Sun, Moon } from 'lucide-react';
@@ -10,6 +11,7 @@ export function Navbar() {
   const { user, logout, isAuthenticated } = useAuth();
   const { theme, toggle } = useTheme();
   const [open, setOpen] = useState(false);
+  const pathname = usePathname();
 
   const links = [
     { href: '/', label: '首页' },
@@ -31,7 +33,7 @@ export function Navbar() {
 
           <div className="hidden md:flex items-center gap-1">
             {links.map(l => (
-              <Link key={l.href} href={l.href} className="btn-ghost">{l.label}</Link>
+              <Link key={l.href} href={l.href} className="btn-ghost" aria-current={pathname === l.href ? 'page' : undefined}>{l.label}</Link>
             ))}
           </div>
 
@@ -63,7 +65,7 @@ export function Navbar() {
       {open && (
         <div className="md:hidden border-t border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 px-4 py-3 space-y-2">
           {links.map(l => (
-            <Link key={l.href} href={l.href} className="block py-2 text-gray-700 dark:text-gray-200" onClick={() => setOpen(false)}>
+            <Link key={l.href} href={l.href} className="block py-2 text-gray-700 dark:text-gray-200" onClick={() => setOpen(false)} aria-current={pathname === l.href ? 'page' : undefined}>
               {l.label}
             </Link>
           ))}
