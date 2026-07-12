@@ -261,3 +261,6 @@ CREATE TABLE IF NOT EXISTS logistics_event (
     description VARCHAR(255),
     create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Feedback role (Task T4)
+ALTER TABLE feedback ADD COLUMN IF NOT EXISTS role VARCHAR(10) DEFAULT 'sender';

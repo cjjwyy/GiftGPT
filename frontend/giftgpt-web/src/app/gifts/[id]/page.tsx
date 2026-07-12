@@ -5,6 +5,7 @@ import { giftApi } from '@/lib/api';
 import { useParams } from 'next/navigation';
 import { Loading } from '@/components/Loading';
 import Link from 'next/link';
+import toast from 'react-hot-toast';
 
 export default function GiftDetailPage() {
   const params = useParams();
@@ -12,6 +13,9 @@ export default function GiftDetailPage() {
   const [gift, setGift] = useState<any>(null);
   const [err, setErr] = useState(false);
   const [logi, setLogi] = useState<any>(null);
+  const [fRole, setFRole] = useState<'sender' | 'receiver'>('sender');
+  const [fContent, setFContent] = useState('');
+  const [feedbacks, setFeedbacks] = useState<any[]>([]);
 
   useEffect(() => {
     giftApi.get(id).then(setGift).catch(() => setErr(true));
@@ -20,6 +24,18 @@ export default function GiftDetailPage() {
   useEffect(() => {
     giftApi.logistics(id).then(setLogi).catch(() => setLogi(null));
   }, [id]);
+
+  const loadFeedbacks = () => { giftApi.feedbackList(id).then(setFeedbacks).catch(() => {}); };
+  useEffect(() => { loadFeedbacks(); }, [id]);
+  const submitFeedback = async () => {
+    if (!fContent.trim()) { toast.error('请输入反馈内容'); return; }
+    try {
+      await giftApi.feedback(id, { content: fContent, role: fRole });
+      setFContent('');
+      loadFeedbacks();
+      toast.success('反馈已提交');
+    } catch (e: any) { toast.error(e?.message || '提交失败'); }
+  };
 
   if (err) return (
     <div className="max-w-2xl mx-auto px-4 py-20 text-center text-gray-400">
@@ -63,6 +79,34 @@ export default function GiftDetailPage() {
           </ol>
         </div>
       )}
+      <div className="card mt-4">
+        <h2 className="font-semibold text-gray-900 dark:text-white mb-3">双向反馈</h2>
+        <div className="flex gap-2 mb-3">
+          <button onClick={() => setFRole('sender')}
+            className={fRole === 'sender' ? 'btn-primary text-sm py-1.5 px-4' : 'btn-outline text-sm py-1.5 px-4'}>
+            送礼方
+          </button>
+          <button onClick={() => setFRole('receiver')}
+            className={fRole === 'receiver' ? 'btn-primary text-sm py-1.5 px-4' : 'btn-outline text-sm py-1.5 px-4'}>
+            收礼方
+          </button>
+        </div>
+        <textarea value={fContent} onChange={e => setFContent(e.target.value)} className="input-field mb-3" rows={2}
+          placeholder="输入反馈内容..." />
+        <button onClick={submitFeedback} className="btn-primary text-sm py-1.5 px-6">提交反馈</button>
+        {feedbacks.length > 0 && (
+          <div className="mt-4 space-y-2">
+            {feedbacks.map((f: any) => (
+              <div key={f.id} className="border-t border-gray-100 dark:border-gray-800 pt-2">
+                <span className={`text-xs px-2 py-0.5 rounded-full mr-2 ${f.role === 'receiver' ? 'bg-rose-50 text-rose-600' : 'bg-primary-50 text-primary-600'}`}>
+                  {f.role === 'receiver' ? '收礼方' : '送礼方'}
+                </span>
+                <span className="text-sm text-gray-700 dark:text-gray-200">{f.content}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

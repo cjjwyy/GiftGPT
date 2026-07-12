@@ -7,6 +7,7 @@ import com.giftgpt.order.entity.Order;
 import com.giftgpt.order.service.OrderService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import java.util.List;
 import javax.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
@@ -42,5 +43,11 @@ public class OrderController {
     @PostMapping("/gifts/{id}/feedback")
     public Result<Feedback> feedback(@PathVariable Long id, @RequestBody Feedback feedback) {
         return Result.ok(orderService.submitFeedback(id, feedback));
+    }
+
+    @Operation(summary = "反馈列表")
+    @GetMapping("/gifts/{id}/feedback")
+    public Result<List<Feedback>> listFeedback(@PathVariable Long id) {
+        return Result.ok(orderService.listFeedback(id));
     }
 }

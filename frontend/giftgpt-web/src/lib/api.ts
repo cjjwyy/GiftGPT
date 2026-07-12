@@ -135,6 +135,7 @@ export const giftApi = {
   logistics: (id: number) => request<any>(`/gifts/${id}/logistics`),
   feedback: (id: number, data: any) =>
     request<any>(`/gifts/${id}/feedback`, { method: 'POST', body: JSON.stringify(data) }),
+  feedbackList: (id: number) => request<any[]>(`/gifts/${id}/feedback`),
 };
 
 // Greetings

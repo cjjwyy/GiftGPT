@@ -14,4 +14,5 @@ public class Feedback extends BaseEntity {
     private String type;
     private String content;
     private Integer isPublic;
+    private String role;
 }

@@ -162,6 +162,13 @@ public class OrderService {
         return feedback;
     }
 
+    public List<Feedback> listFeedback(Long giftRecordId) {
+        return feedbackMapper.selectList(
+            new LambdaQueryWrapper<Feedback>()
+                .eq(Feedback::getGiftRecordId, giftRecordId)
+                .orderByAsc(Feedback::getCreateTime));
+    }
+
     private void insertMockLogisticsEvents(Long orderId) {
         LocalDateTime now = LocalDateTime.now();
         List<LogisticsEvent> evs = List.of(
