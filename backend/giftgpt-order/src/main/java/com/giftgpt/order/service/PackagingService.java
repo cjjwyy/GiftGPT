@@ -3,8 +3,9 @@ package com.giftgpt.order.service;
 import cn.dev33.satoken.stp.StpUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.giftgpt.common.ai.DeepseekClient;
 import com.giftgpt.common.exception.BusinessException;
 import com.giftgpt.common.result.ResultCode;
 import com.giftgpt.order.dto.packaging.AiPackagingRequest;
@@ -17,17 +18,11 @@ import com.giftgpt.user.entity.GiftRecord;
 import com.giftgpt.user.entity.Recipient;
 import com.giftgpt.user.mapper.GiftRecordMapper;
 import com.giftgpt.user.mapper.RecipientMapper;
-import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import java.io.*;
 import java.math.BigDecimal;
-import java.net.HttpURLConnection;
-import java.net.URL;
-import java.nio.charset.StandardCharsets;
 import java.util.*;
 
 @Slf4j
@@ -39,16 +34,7 @@ public class PackagingService {
     private final GiftRecordMapper giftRecordMapper;
     private final RecipientMapper recipientMapper;
 
-    @Value("${giftgpt.ai.deepseek.api-key:}")
-    private String apiKey;
-
-    @Value("${giftgpt.ai.deepseek.base-url:https://api.deepseek.com/v1}")
-    private String baseUrl;
-
-    @Value("${giftgpt.ai.deepseek.model:deepseek-chat}")
-    private String model;
-
-    private static final ObjectMapper objectMapper = new ObjectMapper();
+    private final DeepseekClient deepseekClient;
 
     public List<PackagingTheme> getThemes() {
         return List.of(
@@ -70,25 +56,29 @@ public class PackagingService {
     }
 
     public AiPackagingResult aiRecommend(AiPackagingRequest req) {
-        if (apiKey == null || apiKey.isBlank()) {
-            throw new BusinessException(ResultCode.NOT_FOUND);
+        if (!deepseekClient.isConfigured()) {
+            return fallbackPackaging(req);
         }
         try {
-            String prompt = buildAiPrompt(req);
-            String content = callDeepseek(prompt);
-            // Strip markdown code blocks
-            String json = content.trim();
-            if (json.startsWith("```")) {
-                int start = json.indexOf("\n") + 1;
-                int end = json.lastIndexOf("```");
-                if (end > start) json = json.substring(start, end).trim();
-            }
-            objectMapper.configure(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-            return objectMapper.readValue(json, AiPackagingResult.class);
+            String content = deepseekClient.chat(
+                "你是礼物包装顾问AI助手，总是以JSON格式回复，不添加markdown标记。",
+                buildAiPrompt(req), 1024);
+            String json = DeepseekClient.stripMarkdown(content);
+            ObjectMapper m = new ObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+            return m.readValue(json, AiPackagingResult.class);
         } catch (Exception e) {
-            log.error("AI packaging recommend failed", e);
-            throw new BusinessException(ResultCode.NOT_FOUND);
+            log.error("AI packaging recommend failed, using fallback", e);
+            return fallbackPackaging(req);
         }
+    }
+
+    private AiPackagingResult fallbackPackaging(AiPackagingRequest req) {
+        // ponytail: 模板兜底，无 key/API 失败时演示不中断
+        AiPackagingResult r = new AiPackagingResult();
+        r.setPackagingType("classic");
+        r.setRibbonColor("金色");
+        r.setWrappingStyle("cross");
+        return r;
     }
 
     private String buildAiPrompt(AiPackagingRequest req) {
@@ -109,52 +99,6 @@ public class PackagingService {
         return sb.toString();
     }
 
-    @Data
-    static class DsMessage { private String role; private String content; }
-    @Data
-    static class DsRequest {
-        private String model;
-        private List<DsMessage> messages;
-        private double temperature = 0.7;
-        @JsonProperty("max_tokens") private int maxTokens = 1024;
-    }
-    @Data
-    static class DsChoice { private DsMessage message; }
-    @Data
-    static class DsResponse { private List<DsChoice> choices; }
-
-    private String callDeepseek(String prompt) throws IOException {
-        DsRequest req = new DsRequest();
-        req.setModel(model);
-        DsMessage sys = new DsMessage();
-        sys.setRole("system");
-        sys.setContent("你是礼物包装顾问AI助手，总是以JSON格式回复，不添加markdown标记。");
-        DsMessage user = new DsMessage();
-        user.setRole("user");
-        user.setContent(prompt);
-        req.setMessages(List.of(sys, user));
-
-        String body = objectMapper.writeValueAsString(req);
-        URL url = new URL(baseUrl + "/chat/completions");
-        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-        conn.setRequestMethod("POST");
-        conn.setRequestProperty("Authorization", "Bearer " + apiKey);
-        conn.setRequestProperty("Content-Type", "application/json");
-        conn.setDoOutput(true);
-        conn.setConnectTimeout(60000);
-        conn.setReadTimeout(120000);
-        try (OutputStream os = conn.getOutputStream()) {
-            os.write(body.getBytes(StandardCharsets.UTF_8));
-        }
-        if (conn.getResponseCode() != 200) {
-            throw new IOException("Deepseek API returned " + conn.getResponseCode());
-        }
-        String resp = new String(conn.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
-        objectMapper.configure(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-        DsResponse ds = objectMapper.readValue(resp, DsResponse.class);
-        return ds.getChoices().get(0).getMessage().getContent();
-    }
-
     public Packaging savePackaging(SavePackagingRequest req) {
         Long userId = StpUtil.getLoginIdAsLong();
         Packaging p = new Packaging();
@@ -173,8 +117,11 @@ public class PackagingService {
 
         if (req.getRecipientId() != null) {
             Recipient recipient = recipientMapper.selectById(req.getRecipientId());
-            if (recipient == null || !recipient.getUserId().equals(userId)) {
-                throw new BusinessException(ResultCode.RECIPIENT_NOT_FOUND);
+            if (recipient == null) {
+                throw new BusinessException(ResultCode.NOT_FOUND);
+            }
+            if (!recipient.getUserId().equals(userId)) {
+                throw new BusinessException(ResultCode.FORBIDDEN);
             }
             GiftRecord gr = new GiftRecord();
             gr.setUserId(userId);
