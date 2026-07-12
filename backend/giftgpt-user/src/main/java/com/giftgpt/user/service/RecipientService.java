@@ -37,6 +37,9 @@ public class RecipientService {
         recipient.setRelation(request.getRelation());
         recipient.setGender(request.getGender());
         recipient.setAgeRange(request.getAgeRange());
+        recipient.setMbti(request.getMbti());
+        recipient.setPersonality(request.getPersonality());
+        recipient.setRecentPurchases(request.getRecentPurchases());
         recipient.setNote(request.getNote());
         recipientMapper.insert(recipient);
 
@@ -78,6 +81,7 @@ public class RecipientService {
         return recipient;
     }
 
+    @Transactional
     public void delete(Long id) {
         Recipient recipient = getOwnRecipient(id);
         tagMapper.delete(new LambdaQueryWrapper<RecipientTag>().eq(RecipientTag::getRecipientId, id));
