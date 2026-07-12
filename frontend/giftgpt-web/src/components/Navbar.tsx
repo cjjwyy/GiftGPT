@@ -33,7 +33,7 @@ export function Navbar() {
 
           <div className="hidden md:flex items-center gap-1">
             {links.map(l => (
-              <Link key={l.href} href={l.href} className="btn-ghost" aria-current={pathname === l.href ? 'page' : undefined}>{l.label}</Link>
+              <Link key={l.href} href={l.href} className={`btn-ghost ${pathname === l.href ? 'text-primary-600 dark:text-primary-400 font-semibold' : ''}`} aria-current={pathname === l.href ? 'page' : undefined}>{l.label}</Link>
             ))}
           </div>
 
@@ -65,7 +65,7 @@ export function Navbar() {
       {open && (
         <div className="md:hidden border-t border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 px-4 py-3 space-y-2">
           {links.map(l => (
-            <Link key={l.href} href={l.href} className="block py-2 text-gray-700 dark:text-gray-200" onClick={() => setOpen(false)} aria-current={pathname === l.href ? 'page' : undefined}>
+            <Link key={l.href} href={l.href} className={`block py-2 ${pathname === l.href ? 'text-primary-600 dark:text-primary-400 font-semibold' : 'text-gray-700 dark:text-gray-200'}`} onClick={() => setOpen(false)} aria-current={pathname === l.href ? 'page' : undefined}>
               {l.label}
             </Link>
           ))}
