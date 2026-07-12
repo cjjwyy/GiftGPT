@@ -3,7 +3,6 @@ package com.giftgpt.order.controller;
 import com.giftgpt.common.result.Result;
 import com.giftgpt.order.dto.*;
 import com.giftgpt.order.entity.Feedback;
-import com.giftgpt.order.entity.GreetingCard;
 import com.giftgpt.order.entity.Order;
 import com.giftgpt.order.service.OrderService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -35,7 +34,7 @@ public class OrderController {
 
     @Operation(summary = "AI 生成贺卡文案")
     @PostMapping("/greetings/generate")
-    public Result<GreetingCard> generateGreeting(@RequestBody GreetingGenerateRequest request) {
+    public Result<GreetingResponse> generateGreeting(@RequestBody GreetingGenerateRequest request) {
         return Result.ok(orderService.generateGreeting(request));
     }
 

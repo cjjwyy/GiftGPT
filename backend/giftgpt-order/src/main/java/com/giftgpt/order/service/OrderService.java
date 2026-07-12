@@ -3,6 +3,7 @@ package com.giftgpt.order.service;
 import cn.dev33.satoken.stp.StpUtil;
 import cn.hutool.core.util.IdUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.giftgpt.common.ai.PythonAiClient;
 import com.giftgpt.common.exception.BusinessException;
 import com.giftgpt.common.result.ResultCode;
 import com.giftgpt.order.dto.*;
@@ -19,11 +20,15 @@ import com.giftgpt.user.entity.Recipient;
 import com.giftgpt.user.mapper.GiftRecordMapper;
 import com.giftgpt.user.mapper.RecipientMapper;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.HashMap;
+import java.util.Map;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class OrderService {
@@ -34,6 +39,7 @@ public class OrderService {
     private final FeedbackMapper feedbackMapper;
     private final GiftRecordMapper giftRecordMapper;
     private final RecipientMapper recipientMapper;
+    private final PythonAiClient pythonAiClient;
 
     @Transactional
     public Order createOrder(CreateOrderRequest request) {
@@ -104,14 +110,26 @@ public class OrderService {
         return order;
     }
 
-    public GreetingCard generateGreeting(GreetingGenerateRequest request) {
-        String content = generateMockGreeting(request);
-        GreetingCard card = new GreetingCard();
-        card.setContent(content);
-        card.setStyleTemplate("classic");
-        card.setQrCodeUrl("https://placeholder.pics/qrcode/" + IdUtil.fastSimpleUUID().substring(0, 8));
-        greetingCardMapper.insert(card);
-        return card;
+    public GreetingResponse generateGreeting(GreetingGenerateRequest request) {
+        GreetingResponse resp = new GreetingResponse();
+        try {
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("recipientName", request.getRecipientName());
+            payload.put("relation", request.getRelation() == null ? "" : request.getRelation());
+            payload.put("occasion", request.getOccasion() == null ? "" : request.getOccasion());
+            payload.put("senderName", request.getSenderName());
+            PythonAiClient.GreetingResult r = pythonAiClient.generateGreeting(payload);
+            resp.setContent(r.getContent());
+            resp.setStyleTemplate(r.getStyleTemplate());
+            resp.setAiGenerated(true);
+            return resp;
+        } catch (Exception e) {
+            log.warn("Python greeting unavailable, fallback to template");
+            resp.setContent(generateMockGreeting(request));
+            resp.setStyleTemplate("classic");
+            resp.setAiGenerated(false);
+            return resp;
+        }
     }
 
     public Feedback submitFeedback(Long giftRecordId, Feedback feedback) {

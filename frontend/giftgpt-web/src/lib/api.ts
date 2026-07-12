@@ -137,7 +137,7 @@ export const greetingApi = {
     relation: string;
     occasion: string;
     senderName: string;
-  }) => request<any>('/greetings/generate', { method: 'POST', body: JSON.stringify(data) }),
+  }) => request<{ content: string; styleTemplate: string; aiGenerated: boolean }>('/greetings/generate', { method: 'POST', body: JSON.stringify(data) }),
 };
 
 // Stories

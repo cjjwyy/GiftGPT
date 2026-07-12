@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
-import { packagingApi } from '@/lib/api';
+import { packagingApi, greetingApi } from '@/lib/api';
 import { Loading } from '@/components/Loading';
 import { Sparkles, Gift, History, ArrowLeft } from 'lucide-react';
 import { toast } from 'react-hot-toast';
@@ -59,6 +59,7 @@ function PackagingContent() {
 
   const [ribbonStyle, setRibbonStyle] = useState('');
   const [aiLoading, setAiLoading] = useState(false);
+  const [aiGreetingLoading, setAiGreetingLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const [history, setHistory] = useState<any[]>([]);
@@ -108,6 +109,23 @@ function PackagingContent() {
       toast.success('AI智能包装推荐已完成');
     } catch (e: any) { toast.error(e?.message || 'AI推荐失败'); }
     setAiLoading(false);
+  };
+
+  const onAiGreeting = async () => {
+    setAiGreetingLoading(true);
+    try {
+      const res = await greetingApi.generate({
+        recipientName: recipientName || '朋友',
+        relation: '',
+        occasion: occasion || '生日',
+        senderName: '我',
+      });
+      setCardText((res.content || '').slice(0, 50));
+      toast.success(res.aiGenerated ? 'AI 贺卡已生成（由 AI 生成）' : 'AI 服务不可用，已用默认文案');
+    } catch (e: any) {
+      toast.error(e?.message || '生成失败');
+    }
+    setAiGreetingLoading(false);
   };
 
   const onSave = async () => {
@@ -237,8 +255,14 @@ function PackagingContent() {
                 </div>
               )}
               {c.id === 'greeting_card' && customs.has('greeting_card') && (
-                <textarea value={cardText} onChange={e => setCardText(e.target.value.slice(0, 50))} disabled={readOnly}
-                  placeholder="贺卡文案（50字以内）" className="input-field text-sm mt-2 w-full" rows={2} />
+                <div className="flex items-center gap-2 mt-2 w-full">
+                  <textarea value={cardText} onChange={e => setCardText(e.target.value.slice(0, 50))} disabled={readOnly}
+                    placeholder="贺卡文案（50字以内）" className="input-field text-sm flex-1" rows={2} />
+                  <button type="button" disabled={readOnly || aiGreetingLoading} onClick={onAiGreeting}
+                    className="btn-primary text-sm py-1.5 px-4 flex items-center gap-2 whitespace-nowrap">
+                    <Sparkles className="w-3.5 h-3.5" /> {aiGreetingLoading ? '生成中' : 'AI 生成'}
+                  </button>
+                </div>
               )}
               {c.id === 'scent' && customs.has('scent') && (
                 <select value={scent} onChange={e => setScent(e.target.value)} disabled={readOnly} className="input-field text-sm mt-2 w-32">
