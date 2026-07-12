@@ -49,6 +49,8 @@ giftgpt:
       api-key: ${DEEPSEEK_API_KEY:}
       base-url: https://api.deepseek.com/v1
       model: deepseek-chat
+    python:
+      base-url: ${AI_SERVICE_URL:http://localhost:8000}
   commerce:
     pinduoduo:
       client-id: ${PDD_CLIENT_ID:}
