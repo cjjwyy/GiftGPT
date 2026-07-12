@@ -120,8 +120,15 @@ export const productApi = {
 
 // Gifts
 export const giftApi = {
-  list: (page = 1, size = 10) =>
-    request<any>(`/gifts?page=${page}&size=${size}`),
+  list: (params?: { recipientId?: number; occasion?: string; status?: string }, page = 1, size = 50) => {
+    const qs = new URLSearchParams({ page: String(page), size: String(size) });
+    if (params) {
+      if (params.recipientId) qs.set('recipientId', String(params.recipientId));
+      if (params.occasion) qs.set('occasion', params.occasion);
+      if (params.status) qs.set('status', params.status);
+    }
+    return request<any>(`/gifts?${qs.toString()}`);
+  },
   get: (id: number) => request<any>(`/gifts/${id}`),
   createOrder: (id: number, data: any) =>
     request<any>(`/gifts/${id}/order`, { method: 'POST', body: JSON.stringify(data) }),

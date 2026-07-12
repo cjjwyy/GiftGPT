@@ -21,8 +21,11 @@ public class GiftMemoryController {
     @GetMapping
     public Result<Page<GiftRecord>> list(
             @RequestParam(defaultValue = "1") int page,
-            @RequestParam(defaultValue = "10") int size) {
-        return Result.ok(giftMemoryService.listHistory(page, size));
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(required = false) Long recipientId,
+            @RequestParam(required = false) String occasion,
+            @RequestParam(required = false) String status) {
+        return Result.ok(giftMemoryService.listHistory(page, size, recipientId, occasion, status));
     }
 
     @Operation(summary = "送礼记录详情")

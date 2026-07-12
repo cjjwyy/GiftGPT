@@ -14,13 +14,16 @@ public class GiftMemoryService {
 
     private final GiftRecordMapper giftRecordMapper;
 
-    public Page<GiftRecord> listHistory(int page, int size) {
+    public Page<GiftRecord> listHistory(int page, int size, Long recipientId, String occasion, String status) {
         Long userId = StpUtil.getLoginIdAsLong();
         Page<GiftRecord> p = new Page<>(page, size);
-        return giftRecordMapper.selectPage(p,
-                new LambdaQueryWrapper<GiftRecord>()
-                        .eq(GiftRecord::getUserId, userId)
-                        .orderByDesc(GiftRecord::getCreateTime));
+        LambdaQueryWrapper<GiftRecord> w = new LambdaQueryWrapper<GiftRecord>()
+                .eq(GiftRecord::getUserId, userId)
+                .orderByDesc(GiftRecord::getCreateTime);
+        if (recipientId != null) w.eq(GiftRecord::getRecipientId, recipientId);
+        if (occasion != null && !occasion.isBlank()) w.eq(GiftRecord::getOccasion, occasion);
+        if (status != null && !status.isBlank()) w.eq(GiftRecord::getStatus, status);
+        return giftRecordMapper.selectPage(p, w);
     }
 
     public GiftRecord getById(Long id) {
