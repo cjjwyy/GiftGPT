@@ -167,6 +167,7 @@ function RecommendContent() {
                   price={item.price} imageUrl={item.imageUrl} platform={item.platform}
                   platformUrl={item.platformUrl}
                   reason={item.reason} matchTags={item.matchTags} score={item.score}
+                  reasoningChain={item.reasoningChain}
                   recipientName={result.recipientName} recipientId={result.recipientId} occasion={result.occasion} />
               ))}
             </div>

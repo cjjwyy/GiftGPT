@@ -1,5 +1,9 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from dotenv import load_dotenv
+
+load_dotenv()
+
 from llm_service.router import router as llm_router
 from profile_analyzer.router import router as profile_router
 from recommender.router import router as recommender_router

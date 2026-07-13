@@ -335,6 +335,40 @@ public class KnowledgeGraphService {
         }
     }
 
+    /**
+     * Rebuild the entire knowledge graph: reload taxonomy from file, recreate schema,
+     * re-sync all H2 data. Call after taxonomy JSON is edited or new data added.
+     * Returns summary counts for API response.
+     */
+    public Map<String, Object> rebuildGraph() {
+        if (!enabled || driver == null) {
+            throw new IllegalStateException("KG not enabled or Neo4j not connected");
+        }
+        try {
+            loadTaxonomy();
+            buildSchema();
+            syncDataAndBuildGraph();
+            Map<String, Object> result = new HashMap<>();
+            result.put("categories", categoryIdToName.size());
+            result.put("optNameMappings", optNameToCategoryId.size());
+            result.put("occasions", occasionCodeToName.size());
+            log.info("KG rebuild completed: {}", result);
+            return result;
+        } catch (Exception e) {
+            log.error("KG rebuild failed", e);
+            throw new RuntimeException("KG rebuild failed: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Load Neo4j from a specific taxonomy file path (override config-via-file).
+     * Used by REST endpoint to edit taxonomy without restarting backend.
+     */
+    public Map<String, Object> rebuildFromFilePath(String filePath) {
+        this.taxonomyFile = filePath;
+        return rebuildGraph();
+    }
+
     private String nullSafe(String s) {
         return s != null ? s : "";
     }

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Gift, Package } from 'lucide-react';
+import { Gift, Package, Share2 } from 'lucide-react';
 import Link from 'next/link';
 
 interface GiftCardProps {
@@ -17,9 +17,48 @@ interface GiftCardProps {
   recipientName?: string;
   recipientId?: number;
   occasion?: string;
+  reasoningChain?: string;
 }
 
-export function GiftCard({ productId, productName, price, imageUrl, platform, platformUrl, reason, matchTags, score, recipientName, recipientId, occasion }: GiftCardProps) {
+function ReasoningChain({ chain }: { chain: string }) {
+  const [open, setOpen] = useState(false);
+  if (!chain) return null;
+  const parts = chain.split('→').map(s => s.trim()).filter(Boolean);
+  if (parts.length < 2) return null;
+  return (
+    <div className="mt-1">
+      <button
+        onClick={() => setOpen(v => !v)}
+        className="text-xs text-primary-500 hover:text-primary-600 inline-flex items-center gap-1 cursor-pointer"
+        type="button"
+      >
+        <Share2 className="w-3 h-3" /> 推理链 {open ? '▾' : '▸'}
+      </button>
+      {open && (
+        <div className="flex items-center flex-wrap gap-1 mt-1 p-2 rounded-lg bg-gray-50 dark:bg-gray-800/50">
+          {parts.map((part, i) => {
+            const isRel = part.startsWith('[:') || part.length <= 4;
+            const label = part.replace(/^\[:/, '').replace(/\]$/, '').replace(/^\(/, '').replace(/\)$/, '');
+            return (
+              <span key={i} className="inline-flex items-center gap-1">
+                <span className={`text-xs px-1.5 py-0.5 rounded-full ${
+                  isRel
+                    ? 'bg-gray-200 dark:bg-gray-700 text-gray-400 italic'
+                    : 'bg-primary-50 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 font-medium'
+                }`}>
+                  {label}
+                </span>
+                {i < parts.length - 1 && <span className="text-gray-300 dark:text-gray-500 text-xs">→</span>}
+              </span>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function GiftCard({ productId, productName, price, imageUrl, platform, platformUrl, reason, matchTags, score, recipientName, recipientId, occasion, reasoningChain }: GiftCardProps) {
   const [imgError, setImgError] = useState(false);
 
   return (
@@ -57,6 +96,7 @@ export function GiftCard({ productId, productName, price, imageUrl, platform, pl
             ))}
           </div>
         )}
+        {reasoningChain && <ReasoningChain chain={reasoningChain} />}
         <div className="flex items-center justify-between pt-2 border-t border-gray-50 dark:border-gray-800">
           <span className="text-xl font-bold text-rose-500">¥{price}</span>
           <div className="flex flex-col gap-2">

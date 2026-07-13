@@ -99,7 +99,8 @@ export default function HistoryPage() {
                 <GiftCard key={i} productId={item.productId} productName={item.productName}
                   price={item.price} imageUrl={item.imageUrl} platform={item.platform}
                   platformUrl={item.platformUrl}
-                  reason={item.reason} matchTags={item.matchTags} score={item.score} />
+                  reason={item.reason} matchTags={item.matchTags} score={item.score}
+                  reasoningChain={item.reasoningChain} />
               ))}
             </div>
           ) : (
