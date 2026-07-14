@@ -1,0 +1,32 @@
+name: Deploy Backend
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - run: mvn package -DskipTests -q
+        working-directory: backend
+      - name: Deploy jar to server
+        env:
+          HOST: ${{ secrets.SERVER_HOST }}
+          USER: ${{ secrets.SERVER_USER }}
+          KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          PATH: ${{ secrets.SERVER_PATH }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          jar="backend/giftgpt-server/target/giftgpt-server-1.0.0-SNAPSHOT.jar"
+          scp -o StrictHostKeyChecking=accept-new "$jar" "$USER@$HOST:$PATH/"
+          ssh -o StrictHostKeyChecking=accept-new "$USER@$HOST" "cd $PATH && start.bat"
