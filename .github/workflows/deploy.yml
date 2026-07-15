@@ -32,19 +32,5 @@ jobs:
           mkdir -p ~/.ssh
           echo "$KEY" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
-          scp -o StrictHostKeyChecking=accept-new backend/giftgpt-server/target/giftgpt-server-1.0.0-SNAPSHOT.jar caddy.exe Caddyfile "$USER@$HOST:$TARGET/"
-          ssh -o StrictHostKeyChecking=accept-new "$USER@$HOST" powershell << 'EOF'
-            $target = "$env:TARGET"
-            # Kill old Java
-            Get-Process java -ErrorAction SilentlyContinue | Where-Object { $_.CommandLine -like '*giftgpt*' } | Stop-Process -Force
-            # Kill old Caddy
-            Get-Process caddy -ErrorAction SilentlyContinue | Stop-Process -Force
-            # Start Java backend
-            Start-Process -WindowStyle Hidden -FilePath java -ArgumentList "-Djava.net.preferIPv4Stack=true -jar $target\giftgpt-server-1.0.0-SNAPSHOT.jar --spring.profiles.active=prod"
-            # Start Caddy reverse proxy (port 443)
-            Start-Process -WindowStyle Hidden -FilePath "$target\caddy.exe" -ArgumentList "run --config $target\Caddyfile"
-            # Open firewall ports
-            netsh advfirewall firewall add rule name="GiftGPT-API" dir=in action=allow protocol=TCP localport=8080 2>$null
-            netsh advfirewall firewall add rule name="GiftGPT-HTTPS" dir=in action=allow protocol=TCP localport=443 2>$null
-            netsh advfirewall firewall add rule name="GiftGPT-HTTP" dir=in action=allow protocol=TCP localport=80 2>$null
-          EOF
+          scp -o StrictHostKeyChecking=accept-new backend/giftgpt-server/target/giftgpt-server-1.0.0-SNAPSHOT.jar caddy.exe Caddyfile .github/workflows/deploy.ps1 "$USER@$HOST:$TARGET/"
+          ssh -o StrictHostKeyChecking=accept-new "$USER@$HOST" "powershell -File $TARGET\deploy.ps1"
