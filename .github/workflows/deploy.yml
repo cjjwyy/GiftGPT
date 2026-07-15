@@ -17,7 +17,7 @@ jobs:
         run: |
           $mvnDir = "C:\apache-maven-3.9.9"
           if (!(Test-Path "$mvnDir\bin\mvn.cmd")) {
-            $url = 'https://ghfast.top/https://github.com/apache/maven/releases/download/maven-3.9.9/apache-maven-3.9.9-bin.zip'
+            $url = 'https://mirrors.aliyun.com/apache/maven/maven-3/3.9.9/binaries/apache-maven-3.9.9-bin.zip'
             Invoke-WebRequest -Uri $url -OutFile "$env:TEMP\maven.zip"
             Expand-Archive "$env:TEMP\maven.zip" -DestinationPath "C:\" -Force
           }
