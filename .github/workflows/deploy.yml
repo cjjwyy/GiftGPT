@@ -32,5 +32,24 @@ jobs:
           mkdir -p ~/.ssh
           echo "$KEY" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
-          scp -o StrictHostKeyChecking=accept-new backend/giftgpt-server/target/giftgpt-server-1.0.0-SNAPSHOT.jar caddy.exe Caddyfile .github/workflows/deploy.ps1 "$USER@$HOST:$TARGET/"
-          ssh -o StrictHostKeyChecking=accept-new "$USER@$HOST" "powershell -File $TARGET\deploy.ps1"
+          SSH_OPTS="-o StrictHostKeyChecking=accept-new -o ConnectTimeout=30 -o ServerAliveInterval=15"
+          for i in 1 2 3; do
+            echo "SCP attempt $i/3 (small files)..."
+            scp $SSH_OPTS Caddyfile .github/workflows/deploy.ps1 "$USER@$HOST:$TARGET/" && break
+            sleep 5
+          done
+          for i in 1 2 3; do
+            echo "SCP attempt $i/3 (jar)..."
+            scp $SSH_OPTS backend/giftgpt-server/target/giftgpt-server-1.0.0-SNAPSHOT.jar "$USER@$HOST:$TARGET/" && break
+            sleep 5
+          done
+          for i in 1 2 3; do
+            echo "SCP attempt $i/3 (caddy)..."
+            scp $SSH_OPTS caddy.exe "$USER@$HOST:$TARGET/" && break
+            sleep 5
+          done
+          for i in 1 2 3; do
+            echo "SSH attempt $i/3 (run deploy.ps1)..."
+            ssh $SSH_OPTS "$USER@$HOST" "powershell -File $TARGET\deploy.ps1" && break
+            sleep 5
+          done
