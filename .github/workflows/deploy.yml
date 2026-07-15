@@ -42,7 +42,6 @@ jobs:
           "@ | Set-Content C:\giftgpt\Caddyfile -Force
           Get-Process java -ErrorAction SilentlyContinue | Where-Object { $_.CommandLine -like '*giftgpt*' } | Stop-Process -Force
           Start-Process -WindowStyle Hidden -FilePath java -ArgumentList "-Djava.net.preferIPv4Stack=true -jar C:\giftgpt\giftgpt-server-1.0.0-SNAPSHOT.jar --spring.profiles.active=prod"
-          netsh advfirewall firewall add rule name="GiftGPT-API" dir=in action=allow protocol=TCP localport=8080 2>$null
       - name: Setup Caddy (optional)
         shell: powershell
         continue-on-error: true
@@ -52,5 +51,3 @@ jobs:
           }
           Get-Process caddy -ErrorAction SilentlyContinue | Stop-Process -Force
           Start-Process -WindowStyle Hidden -FilePath C:\giftgpt\caddy.exe -ArgumentList "run --config C:\giftgpt\Caddyfile"
-          netsh advfirewall firewall add rule name="GiftGPT-HTTPS" dir=in action=allow protocol=TCP localport=443 2>$null
-          netsh advfirewall firewall add rule name="GiftGPT-HTTP" dir=in action=allow protocol=TCP localport=80 2>$null
