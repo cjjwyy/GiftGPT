@@ -41,7 +41,7 @@ jobs:
           }
           "@ | Set-Content C:\giftgpt\Caddyfile -Force
           Get-Process java -ErrorAction SilentlyContinue | Where-Object { $_.CommandLine -like '*giftgpt*' } | Stop-Process -Force
-          Start-Process -WindowStyle Hidden -FilePath java -ArgumentList "-Djava.net.preferIPv4Stack=true -jar C:\giftgpt\giftgpt-server-1.0.0-SNAPSHOT.jar --spring.profiles.active=prod"
+          Start-Process -WindowStyle Hidden -FilePath java -ArgumentList @("-Djava.net.preferIPv4Stack=true", "-jar", "C:\giftgpt\giftgpt-server-1.0.0-SNAPSHOT.jar", "--spring.profiles.active=prod")
       - name: Setup Caddy (optional)
         shell: powershell
         continue-on-error: true
