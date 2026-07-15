@@ -33,6 +33,10 @@ jobs:
       - run: mvn package -DskipTests -q
         working-directory: backend
       - shell: powershell
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          PDD_CLIENT_ID: ${{ secrets.PDD_CLIENT_ID }}
+          PDD_CLIENT_SECRET: ${{ secrets.PDD_CLIENT_SECRET }}
         run: |
           Copy-Item backend/giftgpt-server/target/giftgpt-server-1.0.0-SNAPSHOT.jar C:\giftgpt\ -Force
           @"
@@ -40,6 +44,18 @@ jobs:
               reverse_proxy /api/* localhost:8080
           }
           "@ | Set-Content C:\giftgpt\Caddyfile -Force
+          $config = @"
+          giftgpt:
+            ai:
+              deepseek:
+                api-key: $env:DEEPSEEK_API_KEY
+            commerce:
+              pinduoduo:
+                client-id: $env:PDD_CLIENT_ID
+                client-secret: $env:PDD_CLIENT_SECRET
+          "@
+          mkdir C:\giftgpt\config -Force | Out-Null
+          $config | Set-Content C:\giftgpt\config\application-prod.yml -Force
           Get-Process java -ErrorAction SilentlyContinue | Where-Object { $_.CommandLine -like '*giftgpt*' } | Stop-Process -Force
           cmd /c "start /B java -Djava.net.preferIPv4Stack=true -jar C:\giftgpt\giftgpt-server-1.0.0-SNAPSHOT.jar --spring.profiles.active=prod"
       - name: Setup Caddy (optional)
