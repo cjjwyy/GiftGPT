@@ -16,6 +16,20 @@ jobs:
         run: |
           "C:\apache-maven-3.9.9\bin" | Out-File $env:GITHUB_PATH -Encoding utf8 -Append
           "JAVA_HOME=C:\Program Files\Eclipse Adoptium\jdk-17.0.14.7-hotspot" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
+          $settingsDir = "$HOME\.m2"
+          if (!(Test-Path $settingsDir)) { mkdir $settingsDir }
+          @"
+          <settings>
+            <mirrors>
+              <mirror>
+                <id>aliyun</id>
+                <mirrorOf>central</mirrorOf>
+                <name>Aliyun Maven</name>
+                <url>https://maven.aliyun.com/repository/public</url>
+              </mirror>
+            </mirrors>
+          </settings>
+          "@ | Set-Content "$settingsDir\settings.xml" -Encoding utf8
       - run: mvn package -DskipTests -q
         working-directory: backend
       - shell: powershell
