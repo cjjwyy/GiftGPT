@@ -50,4 +50,4 @@ jobs:
             Invoke-WebRequest -Uri 'https://ghfast.top/https://github.com/caddyserver/caddy/releases/latest/download/caddy_windows_amd64.exe' -OutFile C:\giftgpt\caddy.exe
           }
           Get-Process caddy -ErrorAction SilentlyContinue | Stop-Process -Force
-          Start-Process -WindowStyle Hidden -FilePath C:\giftgpt\caddy.exe -ArgumentList "run --config C:\giftgpt\Caddyfile"
+          Start-Process -WindowStyle Hidden -FilePath C:\giftgpt\caddy.exe -ArgumentList @("run", "--config", "C:\giftgpt\Caddyfile")
