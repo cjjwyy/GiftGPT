@@ -41,7 +41,7 @@ jobs:
           }
           "@ | Set-Content C:\giftgpt\Caddyfile -Force
           Get-Process java -ErrorAction SilentlyContinue | Where-Object { $_.CommandLine -like '*giftgpt*' } | Stop-Process -Force
-          Start-Process -WindowStyle Hidden -FilePath java -ArgumentList @("-Djava.net.preferIPv4Stack=true", "-jar", "C:\giftgpt\giftgpt-server-1.0.0-SNAPSHOT.jar", "--spring.profiles.active=prod")
+          cmd /c "start /B java -Djava.net.preferIPv4Stack=true -jar C:\giftgpt\giftgpt-server-1.0.0-SNAPSHOT.jar --spring.profiles.active=prod"
       - name: Setup Caddy (optional)
         shell: powershell
         continue-on-error: true
@@ -50,4 +50,4 @@ jobs:
             Invoke-WebRequest -Uri 'https://ghfast.top/https://github.com/caddyserver/caddy/releases/latest/download/caddy_windows_amd64.exe' -OutFile C:\giftgpt\caddy.exe
           }
           Get-Process caddy -ErrorAction SilentlyContinue | Stop-Process -Force
-          Start-Process -WindowStyle Hidden -FilePath C:\giftgpt\caddy.exe -ArgumentList @("run", "--config", "C:\giftgpt\Caddyfile")
+          cmd /c "start /B C:\giftgpt\caddy.exe run --config C:\giftgpt\Caddyfile"
