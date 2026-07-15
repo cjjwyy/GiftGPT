@@ -1,6 +1,7 @@
 spring:
   application:
     name: giftgpt
+  # Active profile set via --spring.profiles.active=prod on server
   mvc:
     pathmatch:
       matching-strategy: ant_path_matcher
