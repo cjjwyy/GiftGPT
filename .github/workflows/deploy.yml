@@ -23,11 +23,11 @@ jobs:
           HOST: ${{ secrets.SERVER_HOST }}
           USER: ${{ secrets.SERVER_USER }}
           KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-          PATH: ${{ secrets.SERVER_PATH }}
+          TARGET: ${{ secrets.SERVER_PATH }}
         run: |
           mkdir -p ~/.ssh
           echo "$KEY" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
           jar="backend/giftgpt-server/target/giftgpt-server-1.0.0-SNAPSHOT.jar"
-          scp -o StrictHostKeyChecking=accept-new "$jar" "$USER@$HOST:$PATH/"
-          ssh -o StrictHostKeyChecking=accept-new "$USER@$HOST" "cd $PATH && start.bat"
+          scp -o StrictHostKeyChecking=accept-new "$jar" "$USER@$HOST:$TARGET/"
+          ssh -o StrictHostKeyChecking=accept-new "$USER@$HOST" "cd $TARGET && start.bat"
