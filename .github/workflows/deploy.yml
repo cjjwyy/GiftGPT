@@ -8,8 +8,8 @@ on:
       - '.github/**'
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
+  deploy:
+    runs-on: self-hosted
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -18,35 +18,17 @@ jobs:
           java-version: 17
       - run: mvn package -DskipTests -q
         working-directory: backend
-      - uses: actions/upload-artifact@v4
-        with:
-          name: giftgpt-jar
-          path: backend/giftgpt-server/target/giftgpt-server-1.0.0-SNAPSHOT.jar
-
-  deploy:
-    needs: build
-    runs-on: self-hosted
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
-        with:
-          name: giftgpt-jar
-          path: .
       - shell: powershell
         run: |
-          # Ensure Caddy exists
           if (!(Test-Path C:\giftgpt\caddy.exe)) {
             Invoke-WebRequest -Uri 'https://ghfast.top/https://github.com/caddyserver/caddy/releases/latest/download/caddy_windows_amd64.exe' -OutFile C:\giftgpt\caddy.exe
           }
-          # Create Caddyfile
           @"
           122.51.33.146 {
               reverse_proxy /api/* localhost:8080
           }
           "@ | Set-Content C:\giftgpt\Caddyfile -Force
-          # Copy new jar
-          Copy-Item giftgpt-server-1.0.0-SNAPSHOT.jar C:\giftgpt\ -Force
-          # Restart services
+          Copy-Item backend/giftgpt-server/target/giftgpt-server-1.0.0-SNAPSHOT.jar C:\giftgpt\ -Force
           Get-Process java -ErrorAction SilentlyContinue | Where-Object { $_.CommandLine -like '*giftgpt*' } | Stop-Process -Force
           Get-Process caddy -ErrorAction SilentlyContinue | Stop-Process -Force
           Start-Process -WindowStyle Hidden -FilePath java -ArgumentList "-Djava.net.preferIPv4Stack=true -jar C:\giftgpt\giftgpt-server-1.0.0-SNAPSHOT.jar --spring.profiles.active=prod"
