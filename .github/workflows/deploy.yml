@@ -12,16 +12,10 @@ jobs:
     runs-on: self-hosted
     steps:
       - uses: actions/checkout@v4
-      - name: Setup Maven
-        shell: powershell
+      - shell: powershell
         run: |
-          $mvnDir = "C:\apache-maven-3.9.9"
-          if (!(Test-Path "$mvnDir\bin\mvn.cmd")) {
-            $url = 'https://mirrors.aliyun.com/apache/maven/maven-3/3.9.9/binaries/apache-maven-3.9.9-bin.zip'
-            Invoke-WebRequest -Uri $url -OutFile "$env:TEMP\maven.zip"
-            Expand-Archive "$env:TEMP\maven.zip" -DestinationPath "C:\" -Force
-          }
-          echo "C:\apache-maven-3.9.9\bin" >> $env:GITHUB_PATH
+          "C:\apache-maven-3.9.9\bin" | Out-File $env:GITHUB_PATH -Encoding utf8 -Append
+          "JAVA_HOME=C:\Program Files\Eclipse Adoptium\jdk-17.0.14.7-hotspot" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
       - run: mvn package -DskipTests -q
         working-directory: backend
       - shell: powershell
