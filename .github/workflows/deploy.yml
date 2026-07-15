@@ -18,7 +18,11 @@ jobs:
           java-version: 17
       - run: mvn package -DskipTests -q
         working-directory: backend
-      - name: Deploy jar to server
+      - name: Download Caddy
+        run: |
+          curl -sL -o caddy.exe "https://github.com/caddyserver/caddy/releases/latest/download/caddy_windows_amd64.exe"
+          echo '122.51.33.146 { reverse_proxy /api/* localhost:8080 }' > Caddyfile
+      - name: Deploy to server
         env:
           HOST: ${{ secrets.SERVER_HOST }}
           USER: ${{ secrets.SERVER_USER }}
@@ -28,6 +32,6 @@ jobs:
           mkdir -p ~/.ssh
           echo "$KEY" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
-          jar="backend/giftgpt-server/target/giftgpt-server-1.0.0-SNAPSHOT.jar"
-          scp -o StrictHostKeyChecking=accept-new "$jar" "$USER@$HOST:$TARGET/"
+          scp -o StrictHostKeyChecking=accept-new backend/giftgpt-server/target/giftgpt-server-1.0.0-SNAPSHOT.jar caddy.exe Caddyfile "$USER@$HOST:$TARGET/"
           ssh -o StrictHostKeyChecking=accept-new "$USER@$HOST" "cd $TARGET && start.bat"
+          ssh -o StrictHostKeyChecking=accept-new "$USER@$HOST" "cd $TARGET && .\caddy.exe start --config Caddyfile"
