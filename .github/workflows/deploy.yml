@@ -8,7 +8,7 @@ on:
       - '.github/**'
 
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -18,38 +18,39 @@ jobs:
           java-version: 17
       - run: mvn package -DskipTests -q
         working-directory: backend
-      - name: Download Caddy
+      - uses: actions/upload-artifact@v4
+        with:
+          name: giftgpt-jar
+          path: backend/giftgpt-server/target/giftgpt-server-1.0.0-SNAPSHOT.jar
+
+  deploy:
+    needs: build
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: giftgpt-jar
+          path: .
+      - shell: powershell
         run: |
-          curl -sL -o caddy.exe "https://github.com/caddyserver/caddy/releases/latest/download/caddy_windows_amd64.exe"
-          echo '122.51.33.146 { reverse_proxy /api/* localhost:8080 }' > Caddyfile
-      - name: Deploy to server
-        env:
-          HOST: ${{ secrets.SERVER_HOST }}
-          USER: ${{ secrets.SERVER_USER }}
-          KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-          TARGET: ${{ secrets.SERVER_PATH }}
-        run: |
-          mkdir -p ~/.ssh
-          echo "$KEY" > ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
-          SSH_OPTS="-o StrictHostKeyChecking=accept-new -o ConnectTimeout=30 -o ServerAliveInterval=15"
-          for i in 1 2 3; do
-            echo "SCP attempt $i/3 (small files)..."
-            scp $SSH_OPTS Caddyfile .github/workflows/deploy.ps1 "$USER@$HOST:$TARGET/" && break
-            sleep 5
-          done
-          for i in 1 2 3; do
-            echo "SCP attempt $i/3 (jar)..."
-            scp $SSH_OPTS backend/giftgpt-server/target/giftgpt-server-1.0.0-SNAPSHOT.jar "$USER@$HOST:$TARGET/" && break
-            sleep 5
-          done
-          for i in 1 2 3; do
-            echo "SCP attempt $i/3 (caddy)..."
-            scp $SSH_OPTS caddy.exe "$USER@$HOST:$TARGET/" && break
-            sleep 5
-          done
-          for i in 1 2 3; do
-            echo "SSH attempt $i/3 (run deploy.ps1)..."
-            ssh $SSH_OPTS "$USER@$HOST" "powershell -File $TARGET\deploy.ps1" && break
-            sleep 5
-          done
+          # Ensure Caddy exists
+          if (!(Test-Path C:\giftgpt\caddy.exe)) {
+            Invoke-WebRequest -Uri 'https://ghfast.top/https://github.com/caddyserver/caddy/releases/latest/download/caddy_windows_amd64.exe' -OutFile C:\giftgpt\caddy.exe
+          }
+          # Create Caddyfile
+          @"
+          122.51.33.146 {
+              reverse_proxy /api/* localhost:8080
+          }
+          "@ | Set-Content C:\giftgpt\Caddyfile -Force
+          # Copy new jar
+          Copy-Item giftgpt-server-1.0.0-SNAPSHOT.jar C:\giftgpt\ -Force
+          # Restart services
+          Get-Process java -ErrorAction SilentlyContinue | Where-Object { $_.CommandLine -like '*giftgpt*' } | Stop-Process -Force
+          Get-Process caddy -ErrorAction SilentlyContinue | Stop-Process -Force
+          Start-Process -WindowStyle Hidden -FilePath java -ArgumentList "-Djava.net.preferIPv4Stack=true -jar C:\giftgpt\giftgpt-server-1.0.0-SNAPSHOT.jar --spring.profiles.active=prod"
+          Start-Process -WindowStyle Hidden -FilePath C:\giftgpt\caddy.exe -ArgumentList "run --config C:\giftgpt\Caddyfile"
+          netsh advfirewall firewall add rule name="GiftGPT-API" dir=in action=allow protocol=TCP localport=8080 2>$null
+          netsh advfirewall firewall add rule name="GiftGPT-HTTPS" dir=in action=allow protocol=TCP localport=443 2>$null
+          netsh advfirewall firewall add rule name="GiftGPT-HTTP" dir=in action=allow protocol=TCP localport=80 2>$null
