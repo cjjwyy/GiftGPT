@@ -13,6 +13,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       # JDK 17 pre-installed on self-hosted runner
+      - name: Setup Maven
+        shell: powershell
+        run: |
+          $mvnDir = "C:\apache-maven-3.9.9"
+          if (!(Test-Path "$mvnDir\bin\mvn.cmd")) {
+            Remove-Item "$mvnDir" -Recurse -Force -ErrorAction SilentlyContinue
+            Invoke-WebRequest -Uri 'https://mirrors.tuna.tsinghua.edu.cn/apache/maven/maven-3/3.9.9/binaries/apache-maven-3.9.9-bin.zip' -OutFile "$env:TEMP\maven.zip"
+            Expand-Archive "$env:TEMP\maven.zip" -DestinationPath "C:\" -Force
+          }
+          echo "C:\apache-maven-3.9.9\bin" >> $env:GITHUB_PATH
       - run: mvn package -DskipTests -q
         working-directory: backend
       - shell: powershell
