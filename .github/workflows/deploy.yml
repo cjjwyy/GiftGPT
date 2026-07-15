@@ -35,19 +35,22 @@ jobs:
       - shell: powershell
         run: |
           Copy-Item backend/giftgpt-server/target/giftgpt-server-1.0.0-SNAPSHOT.jar C:\giftgpt\ -Force
-          if (!(Test-Path C:\giftgpt\caddy.exe)) {
-            $url = 'https://ghfast.top/https://github.com/caddyserver/caddy/releases/latest/download/caddy_windows_amd64.exe'
-            Invoke-WebRequest -Uri $url -OutFile C:\giftgpt\caddy.exe
-          }
           @"
           122.51.33.146 {
               reverse_proxy /api/* localhost:8080
           }
           "@ | Set-Content C:\giftgpt\Caddyfile -Force
           Get-Process java -ErrorAction SilentlyContinue | Where-Object { $_.CommandLine -like '*giftgpt*' } | Stop-Process -Force
-          Get-Process caddy -ErrorAction SilentlyContinue | Stop-Process -Force
           Start-Process -WindowStyle Hidden -FilePath java -ArgumentList "-Djava.net.preferIPv4Stack=true -jar C:\giftgpt\giftgpt-server-1.0.0-SNAPSHOT.jar --spring.profiles.active=prod"
-          Start-Process -WindowStyle Hidden -FilePath C:\giftgpt\caddy.exe -ArgumentList "run --config C:\giftgpt\Caddyfile"
           netsh advfirewall firewall add rule name="GiftGPT-API" dir=in action=allow protocol=TCP localport=8080 2>$null
+      - name: Setup Caddy (optional)
+        shell: powershell
+        continue-on-error: true
+        run: |
+          if (!(Test-Path C:\giftgpt\caddy.exe)) {
+            Invoke-WebRequest -Uri 'https://ghfast.top/https://github.com/caddyserver/caddy/releases/latest/download/caddy_windows_amd64.exe' -OutFile C:\giftgpt\caddy.exe
+          }
+          Get-Process caddy -ErrorAction SilentlyContinue | Stop-Process -Force
+          Start-Process -WindowStyle Hidden -FilePath C:\giftgpt\caddy.exe -ArgumentList "run --config C:\giftgpt\Caddyfile"
           netsh advfirewall firewall add rule name="GiftGPT-HTTPS" dir=in action=allow protocol=TCP localport=443 2>$null
           netsh advfirewall firewall add rule name="GiftGPT-HTTP" dir=in action=allow protocol=TCP localport=80 2>$null
