@@ -9,20 +9,20 @@ import { Sparkles, Gift, History, ArrowLeft } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
 const GIFT_BOXES = [
-  { id: 'classic', name: '经典缎面礼盒', desc: '硬质磁吸礼盒，缎面蝴蝶结，丝绒内衬', price: 29.9, svg: '/packaging/box-classic.svg' },
-  { id: 'korean', name: '韩式极简礼盒', desc: '哑光质感，单色丝带，简约标签', price: 19.9, svg: '/packaging/box-korean.svg' },
-  { id: 'kraft', name: '牛皮纸自然风', desc: '牛皮纸+麻绳+干花点缀，环保自然', price: 9.9, svg: '/packaging/box-kraft.svg' },
-  { id: 'luxury', name: '轻奢烫金礼盒', desc: '烫金封面，双层蝴蝶结，珠光内衬', price: 49.9, svg: '/packaging/box-luxury.svg' },
-  { id: 'acrylic', name: '透明亚克力盒', desc: '透明展示盒，内填拉菲草，丝带装饰', price: 24.9, svg: '/packaging/box-acrylic.svg' },
+  { id: 'classic', name: '经典缎面礼盒', desc: '硬质磁吸礼盒，缎面蝴蝶结，丝绒内衬', svg: '/packaging/box-classic.svg' },
+  { id: 'korean', name: '韩式极简礼盒', desc: '哑光质感，单色丝带，简约标签', svg: '/packaging/box-korean.svg' },
+  { id: 'kraft', name: '牛皮纸自然风', desc: '牛皮纸+麻绳+干花点缀，环保自然', svg: '/packaging/box-kraft.svg' },
+  { id: 'luxury', name: '轻奢烫金礼盒', desc: '烫金封面，双层蝴蝶结，珠光内衬', svg: '/packaging/box-luxury.svg' },
+  { id: 'acrylic', name: '透明亚克力盒', desc: '透明展示盒，内填拉菲草，丝带装饰', svg: '/packaging/box-acrylic.svg' },
 ];
 
 const CUSTOMIZATIONS = [
-  { id: 'ribbon_text', name: '礼带烫金字', price: 9.9, svg: '/packaging/opt-ribbon-text.svg' },
-  { id: 'greeting_card', name: '手写贺卡', price: 5.0, svg: '/packaging/opt-greeting-card.svg' },
-  { id: 'dried_flower', name: '干花装饰', price: 12.0, svg: '/packaging/opt-dried-flower.svg' },
-  { id: 'polaroid', name: '拍立得照片夹', price: 8.0, svg: '/packaging/opt-polaroid.svg' },
-  { id: 'scent', name: '香薰加香', price: 6.0, svg: '/packaging/opt-scent.svg' },
-  { id: 'band_wrap', name: '定制腰封', price: 7.0, svg: '/packaging/opt-band-wrap.svg' },
+  { id: 'ribbon_text', name: '礼带烫金字', svg: '/packaging/opt-ribbon-text.svg' },
+  { id: 'greeting_card', name: '手写贺卡', svg: '/packaging/opt-greeting-card.svg' },
+  { id: 'dried_flower', name: '干花装饰', svg: '/packaging/opt-dried-flower.svg' },
+  { id: 'polaroid', name: '拍立得照片夹', svg: '/packaging/opt-polaroid.svg' },
+  { id: 'scent', name: '香薰加香', svg: '/packaging/opt-scent.svg' },
+  { id: 'band_wrap', name: '定制腰封', svg: '/packaging/opt-band-wrap.svg' },
 ];
 
 const RIBBON_STYLES = [
@@ -40,7 +40,6 @@ const RIBBON_MAP = Object.fromEntries(RIBBON_STYLES.map(r => [r.id, r]));
 function PackagingContent() {
   const searchParams = useSearchParams();
   const productName = searchParams.get('productName') || '';
-  const price = searchParams.get('price') || '';
   const imageUrl = searchParams.get('imageUrl') || '';
   const productId = searchParams.get('productId') || '';
   const recipientId = searchParams.get('recipientId') || '';
@@ -73,9 +72,6 @@ function PackagingContent() {
     }
   }, [hasProduct]);
 
-  const totalPrice = (GIFT_BOXES.find(b => b.id === selectedBox)?.price || 0)
-    + Array.from(customs).reduce((sum, id) => sum + (CUSTOMIZATIONS.find(c => c.id === id)?.price || 0), 0);
-
   const toggleCustom = (id: string) => {
     if (readOnly) return;
     setCustoms(prev => {
@@ -90,7 +86,6 @@ function PackagingContent() {
     try {
       const res = await packagingApi.aiRecommend({
         productName,
-        productPrice: Number(price),
       });
       setSelectedBox('');
       setCustoms(new Set());
@@ -133,7 +128,7 @@ function PackagingContent() {
     setSaving(true);
     try {
       await packagingApi.save({
-        productName, productPrice: Number(price), productImageUrl: imageUrl,
+        productName, productImageUrl: imageUrl,
         productId: productId ? Number(productId) : undefined,
         packagingType: selectedBox,
         ribbonText: customs.has('ribbon_text') ? ribbonText : undefined,
@@ -141,7 +136,6 @@ function PackagingContent() {
         scent: customs.has('scent') ? scent : undefined,
         customText: customs.has('greeting_card') ? cardText : undefined,
         wrappingStyle: ribbonStyle,
-        price: totalPrice,
         recipientId: recipientId ? Number(recipientId) : undefined,
         occasion: occasion || undefined,
       });
@@ -177,7 +171,6 @@ function PackagingContent() {
   };
 
   const dispProductName = viewingPlan?.productName || productName;
-  const dispPrice = viewingPlan?.productPrice ?? price;
   const dispImageUrl = viewingPlan?.productImageUrl || imageUrl;
 
   return (
@@ -203,7 +196,6 @@ function PackagingContent() {
           )}
           <div className="flex-1">
             <p className="font-medium text-gray-800 dark:text-gray-100">{dispProductName}</p>
-            <p className="text-sm text-gray-400">¥{dispPrice}</p>
           </div>
           {hasRecipient && !viewingPlan && (
             <div className="text-sm text-gray-500 dark:text-gray-400">
@@ -229,7 +221,6 @@ function PackagingContent() {
             <img src={box.svg} alt={box.name} className="w-full aspect-square object-contain mb-2" />
             <p className="text-sm font-medium text-gray-800 dark:text-gray-100">{box.name}</p>
             <p className="text-xs text-gray-400 mt-0.5 line-clamp-2">{box.desc}</p>
-            <p className="text-sm font-bold text-rose-500 mt-1">¥{box.price}</p>
           </button>
         ))}
       </div>
@@ -272,7 +263,6 @@ function PackagingContent() {
               )}
 
             </div>
-            <span className="text-sm font-bold text-rose-500">¥{c.price}</span>
           </div>
         ))}
       </div>
@@ -289,13 +279,10 @@ function PackagingContent() {
         ))}
       </div>
 
-      {/* Total + save (only in create mode) */}
+      {/* Save (only in create mode) */}
       {!readOnly && (
         <div className="card flex items-center justify-between p-4 sticky bottom-4">
-          <div>
-            <p className="text-sm text-gray-400">包装总计</p>
-            <p className="text-2xl font-bold text-rose-500">¥{totalPrice.toFixed(1)}</p>
-          </div>
+          <p className="text-sm text-gray-400">确认包装方案后保存</p>
           <button onClick={onSave} disabled={saving || !selectedBox}
             className="btn-primary py-2.5 px-8 disabled:opacity-40">
             {saving ? '保存中...' : '确认包装方案'}
@@ -332,7 +319,6 @@ function PackagingContent() {
                     </p>
                     <p className="text-xs text-gray-400 mt-0.5">{p.createTime?.substring(0, 16).replace('T', ' ')}</p>
                   </div>
-                  <span className="text-lg font-bold text-rose-500 shrink-0">¥{p.price}</span>
                 </button>
               ))}
             </div>

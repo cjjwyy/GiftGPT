@@ -1,5 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  output: 'standalone',
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: '**' },
@@ -9,7 +10,7 @@ const nextConfig = {
     return [
       {
         source: '/api/:path*',
-        destination: 'http://122.51.33.146:8080/api/:path*',
+        destination: 'http://localhost:8080/api/:path*',
       },
     ];
   },
