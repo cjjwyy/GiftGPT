@@ -32,13 +32,14 @@ jobs:
           if (Test-Path frontend/giftgpt-web/public) {
             Copy-Item -Recurse -Force frontend/giftgpt-web/public frontend/giftgpt-web/.next/standalone/public
           }
-          Get-CimInstance Win32_Process -Filter "Name='node.exe'" | Where-Object { $_.CommandLine -like '*giftgpt-web*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
+          Get-CimInstance Win32_Process -Filter "Name='node.exe'" | Where-Object { $_.CommandLine -like '*server.js*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
           Start-Sleep 2
           Remove-Item C:\giftgpt-web -Recurse -Force -ErrorAction SilentlyContinue
-          Robocopy frontend/giftgpt-web/.next/standalone C:\giftgpt-web /E /R:1 /W:1 | Out-Null
+          robocopy frontend/giftgpt-web/.next/standalone C:\giftgpt-web /E /R:1 /W:1 | Out-Null
           schtasks /Create /TN "GiftGPT-Web" /TR "cmd /c cd /d C:\giftgpt-web && C:\node\node-v20.20.2-win-x64\node.exe server.js" /SC ONSTART /RU SYSTEM /F | Out-Null
           schtasks /Run /TN "GiftGPT-Web" | Out-Null
           Start-Sleep 5
+          exit 0
       - name: Verify
         shell: powershell
         run: |
