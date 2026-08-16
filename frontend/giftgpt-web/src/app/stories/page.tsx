@@ -35,7 +35,7 @@ export default function StoriesPage() {
   const fetchStories = () => {
     storyApi.list()
       .then(d => { setStories(d.records || []); setLoading(false); })
-      .catch(() => setLoading(false));
+      .catch((err: any) => { setStories([]); setLoading(false); toast.error(err?.message || '加载故事失败'); });
   };
 
   useEffect(() => { fetchStories(); }, []);

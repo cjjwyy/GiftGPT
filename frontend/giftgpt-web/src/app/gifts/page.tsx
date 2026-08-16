@@ -5,6 +5,7 @@ import { giftApi, recipientApi } from '@/lib/api';
 import { GiftRecord } from '@/types';
 import { Loading } from '@/components/Loading';
 import Link from 'next/link';
+import { toast } from 'react-hot-toast';
 
 const STATUS_MAP: Record<string, string> = {
   draft: '草稿', recommended: '已推荐', ordered: '已下单', shipped: '已发货', delivered: '已送达',
@@ -24,7 +25,7 @@ export default function GiftsPage() {
       recipientId: fRecipientId ? Number(fRecipientId) : undefined,
       occasion: fOccasion || undefined,
       status: fStatus || undefined,
-    }).then(d => { setGifts(d.records || []); setLoading(false); }).catch(() => setLoading(false));
+    }).then(d => { setGifts(d.records || []); setLoading(false); }).catch((err: any) => { setGifts([]); setLoading(false); toast.error(err?.message || '加载送礼记录失败'); });
   };
 
   useEffect(() => {

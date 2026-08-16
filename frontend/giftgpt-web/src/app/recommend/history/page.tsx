@@ -30,7 +30,7 @@ export default function HistoryPage() {
       const res = await recommendApi.history(p, 10);
       setRecords(res.records || []);
       setTotal(res.total || 0);
-    } catch { setRecords([]); }
+    } catch (err: any) { setRecords([]); toast.error(err?.message || '加载历史记录失败'); }
     setLoading(false);
   };
 

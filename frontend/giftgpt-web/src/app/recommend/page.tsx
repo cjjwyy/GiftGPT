@@ -37,7 +37,8 @@ function RecommendContent() {
   const [analysis, setAnalysis] = useState('');
 
   useEffect(() => {
-    recipientApi.list().then(d => setRecipients(d.records || [])).catch(() => {});
+    recipientApi.list().then(d => setRecipients(d.records || []))
+      .catch((err: any) => toast.error(err?.message || '加载收礼人失败，请先登录'));
     const saved = sessionStorage.getItem('lastRecommendation');
     if (saved) {
       try { setResult(JSON.parse(saved)); } catch {}

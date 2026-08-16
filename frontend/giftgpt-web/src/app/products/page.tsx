@@ -6,6 +6,7 @@ import { Product } from '@/types';
 import { Loading } from '@/components/Loading';
 import { Search, Gift, Package } from 'lucide-react';
 import Link from 'next/link';
+import { toast } from 'react-hot-toast';
 
 export default function ProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -28,11 +29,16 @@ export default function ProductsPage() {
 
   const onSearch = async () => {
     setLoading(true);
-    const res = await productApi.search({ keyword });
-    const records = res.records || [];
-    setProducts(records);
-    sessionStorage.setItem('lastProductSearch', JSON.stringify({ keyword, products: records }));
-    setLoading(false);
+    try {
+      const res = await productApi.search({ keyword });
+      const records = res.records || [];
+      setProducts(records);
+      sessionStorage.setItem('lastProductSearch', JSON.stringify({ keyword, products: records }));
+    } catch (err: any) {
+      toast.error(err?.message || '搜索失败，请稍后重试');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (

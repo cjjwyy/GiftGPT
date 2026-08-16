@@ -68,7 +68,8 @@ function PackagingContent() {
 
   useEffect(() => {
     if (!hasProduct) {
-      packagingApi.list(1, 20).then(d => setHistory(d.records || [])).catch(() => {});
+      packagingApi.list(1, 20).then(d => setHistory(d.records || []))
+        .catch((err: any) => toast.error(err?.message || '加载包装历史失败'));
     }
   }, [hasProduct]);
 

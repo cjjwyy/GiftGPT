@@ -45,7 +45,12 @@ export default function RecipientDetailPage() {
   };
 
   if (loading) return <Loading />;
-  if (!detail) return <div className="text-center py-20 text-gray-500 dark:text-gray-400">画像不存在</div>;
+  if (!detail) return (
+    <div className="text-center py-20 text-gray-500 dark:text-gray-400">
+      画像不存在或已删除<br/>
+      <Link href="/recipients" className="text-primary-500">返回画像列表</Link>
+    </div>
+  );
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-10">
