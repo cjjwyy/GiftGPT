@@ -34,14 +34,19 @@ jobs:
       - name: Assemble and deploy
         shell: powershell
         run: |
-          Copy-Item -Recurse -Force frontend/giftgpt-web/.next/static frontend/giftgpt-web/.next/standalone/.next/static
-          if (Test-Path frontend/giftgpt-web/public) {
-            Copy-Item -Recurse -Force frontend/giftgpt-web/public frontend/giftgpt-web/.next/standalone/public
+          $ErrorActionPreference = 'Stop'
+          $workspace = (Get-Location).Path
+          $webSource = Join-Path $workspace 'frontend\giftgpt-web'
+          $standalone = Join-Path $webSource '.next\standalone'
+          Copy-Item -Recurse -Force (Join-Path $webSource '.next\static') (Join-Path $standalone '.next\static')
+          if (Test-Path (Join-Path $webSource 'public')) {
+            Copy-Item -Recurse -Force (Join-Path $webSource 'public') (Join-Path $standalone 'public')
           }
           Get-CimInstance Win32_Process -Filter "Name='node.exe'" | Where-Object { $_.CommandLine -like '*server.js*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
           Start-Sleep 2
           Remove-Item C:\giftgpt-web -Recurse -Force -ErrorAction SilentlyContinue
-          robocopy frontend/giftgpt-web/.next/standalone C:\giftgpt-web /E /R:1 /W:1 | Out-Null
+          robocopy $standalone C:\giftgpt-web /E /R:1 /W:1 | Out-Null
+          if ($LASTEXITCODE -ge 8) { throw "robocopy failed with exit code $LASTEXITCODE" }
           schtasks /Create /TN "GiftGPT-Web" /TR "cmd /c cd /d C:\giftgpt-web && C:\node\node-v20.20.2-win-x64\node.exe server.js" /SC ONSTART /RU SYSTEM /F | Out-Null
           Start-Process -FilePath "C:\node\node-v20.20.2-win-x64\node.exe" -ArgumentList "C:\giftgpt-web\server.js" -WorkingDirectory "C:\giftgpt-web" -WindowStyle Hidden
           Start-Sleep 8

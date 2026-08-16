@@ -43,7 +43,8 @@ jobs:
           PDD_CLIENT_SECRET: ${{ secrets.PDD_CLIENT_SECRET }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
         run: |
-          $ErrorActionPreference = 'Continue'
+          $ErrorActionPreference = 'Stop'
+          $workspace = (Get-Location).Path
           $target = 'C:\giftgpt'
           $configDir = Join-Path $target 'config'
           New-Item -ItemType Directory -Force -Path $configDir | Out-Null
@@ -52,7 +53,9 @@ jobs:
           Get-CimInstance Win32_Process -Filter "Name='java.exe'" | Where-Object { $_.CommandLine -like '*giftgpt-server-1.0.0-SNAPSHOT.jar*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
           Start-Sleep -Seconds 2
 
-          Copy-Item backend/giftgpt-server/target/giftgpt-server-1.0.0-SNAPSHOT.jar (Join-Path $target 'giftgpt-server-1.0.0-SNAPSHOT.jar') -Force
+          $jarSource = Join-Path $workspace 'backend\giftgpt-server\target\giftgpt-server-1.0.0-SNAPSHOT.jar'
+          if (-not (Test-Path $jarSource)) { throw "Jar not found: $jarSource" }
+          Copy-Item $jarSource (Join-Path $target 'giftgpt-server-1.0.0-SNAPSHOT.jar') -Force
 
           # JWT secret: GitHub Secret wins; otherwise reuse the persisted server secret file
           $secretFile = Join-Path $configDir 'jwt-secret.txt'
