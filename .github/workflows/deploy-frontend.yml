@@ -42,14 +42,21 @@ jobs:
           if (Test-Path (Join-Path $webSource 'public')) {
             Copy-Item -Recurse -Force (Join-Path $webSource 'public') (Join-Path $standalone 'public')
           }
-          Get-CimInstance Win32_Process -Filter "Name='node.exe'" | Where-Object { $_.CommandLine -like '*server.js*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
+          # End the SYSTEM scheduled task first so the old node process and files are released
+          cmd /c "schtasks /End /TN GiftGPT-Web >nul 2>&1"
           Start-Sleep 2
-          Remove-Item C:\giftgpt-web -Recurse -Force -ErrorAction SilentlyContinue
+          Get-CimInstance Win32_Process -Filter "Name='node.exe'" | Where-Object { $_.CommandLine -like '*server.js*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+          Start-Sleep 2
+          Remove-Item C:\giftgpt-web -Recurse -Force -ErrorAction Stop
           robocopy $standalone C:\giftgpt-web /E /R:1 /W:1 | Out-Null
           if ($LASTEXITCODE -ge 8) { throw "robocopy failed with exit code $LASTEXITCODE" }
           schtasks /Create /TN "GiftGPT-Web" /TR "cmd /c cd /d C:\giftgpt-web && C:\node\node-v20.20.2-win-x64\node.exe server.js" /SC ONSTART /RU SYSTEM /F | Out-Null
-          Start-Process -FilePath "C:\node\node-v20.20.2-win-x64\node.exe" -ArgumentList "C:\giftgpt-web\server.js" -WorkingDirectory "C:\giftgpt-web" -WindowStyle Hidden
-          Start-Sleep 8
+          $proc = Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{
+            CommandLine = 'cmd.exe /c cd /d C:\giftgpt-web && C:\node\node-v20.20.2-win-x64\node.exe server.js > C:\giftgpt\web.log 2>&1'
+            CurrentDirectory = 'C:\giftgpt-web'
+          }
+          if ($proc.ReturnValue -ne 0) { throw "Failed to start web: $($proc.ReturnValue)" }
+          Write-Output ("WEB STARTED PID=" + $proc.ProcessId)
           exit 0
       - name: Verify
         shell: powershell
