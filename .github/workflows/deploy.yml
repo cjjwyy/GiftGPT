@@ -43,12 +43,42 @@ jobs:
           PDD_CLIENT_SECRET: ${{ secrets.PDD_CLIENT_SECRET }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
         run: |
-          Copy-Item backend/giftgpt-server/target/giftgpt-server-1.0.0-SNAPSHOT.jar C:\giftgpt\ -Force
-          $jwtSecret = $env:JWT_SECRET
-          if ([string]::IsNullOrWhiteSpace($jwtSecret)) {
-            $jwtSecret = "giftgpt-prod-temp-" + [guid]::NewGuid().ToString("N")
-            Write-Output "WARN: JWT_SECRET not configured, generated a temporary secret"
+          $ErrorActionPreference = 'Continue'
+          $target = 'C:\giftgpt'
+          $configDir = Join-Path $target 'config'
+          New-Item -ItemType Directory -Force -Path $configDir | Out-Null
+
+          # Stop the running app before replacing the jar (avoids file lock)
+          Get-CimInstance Win32_Process -Filter "Name='java.exe'" | Where-Object { $_.CommandLine -like '*giftgpt-server-1.0.0-SNAPSHOT.jar*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+          Start-Sleep -Seconds 2
+
+          Copy-Item backend/giftgpt-server/target/giftgpt-server-1.0.0-SNAPSHOT.jar (Join-Path $target 'giftgpt-server-1.0.0-SNAPSHOT.jar') -Force
+
+          # JWT secret: GitHub Secret wins; otherwise reuse the persisted server secret file
+          $secretFile = Join-Path $configDir 'jwt-secret.txt'
+          if ([string]::IsNullOrWhiteSpace($env:JWT_SECRET)) {
+            if (Test-Path $secretFile) {
+              $jwtSecret = (Get-Content $secretFile -Raw).Trim()
+            } else {
+              $rng = New-Object System.Security.Cryptography.RNGCryptoServiceProvider
+              $bytes = New-Object byte[] 32
+              $rng.GetBytes($bytes)
+              $jwtSecret = -join ($bytes | ForEach-Object { $_.ToString('x2') })
+              Set-Content -Path $secretFile -Value $jwtSecret -Encoding ascii -Force
+              Write-Output "WARN: JWT_SECRET not configured, generated and persisted a server secret"
+            }
+          } else {
+            $jwtSecret = $env:JWT_SECRET
+            Set-Content -Path $secretFile -Value $jwtSecret -Encoding ascii -Force
           }
+
+          # Keep existing server keys when a GitHub Secret is not configured
+          $oldConfig = Join-Path $configDir 'application-prod.yml'
+          $old = if (Test-Path $oldConfig) { Get-Content $oldConfig -Raw } else { '' }
+          $deepseekKey = if (![string]::IsNullOrWhiteSpace($env:DEEPSEEK_API_KEY)) { $env:DEEPSEEK_API_KEY } elseif ($old -match 'api-key:\s*(\S+)') { $matches[1].Trim() } else { '' }
+          $pddClientId = if (![string]::IsNullOrWhiteSpace($env:PDD_CLIENT_ID)) { $env:PDD_CLIENT_ID } elseif ($old -match 'client-id:\s*(\S+)') { $matches[1].Trim() } else { '' }
+          $pddClientSecret = if (![string]::IsNullOrWhiteSpace($env:PDD_CLIENT_SECRET)) { $env:PDD_CLIENT_SECRET } elseif ($old -match 'client-secret:\s*(\S+)') { $matches[1].Trim() } else { '' }
+
           $config = @"
           spring:
             h2:
@@ -59,18 +89,18 @@ jobs:
           giftgpt:
             ai:
               deepseek:
-                api-key: $env:DEEPSEEK_API_KEY
+                api-key: $deepseekKey
             commerce:
               pinduoduo:
-                client-id: $env:PDD_CLIENT_ID
-                client-secret: $env:PDD_CLIENT_SECRET
+                client-id: $pddClientId
+                client-secret: $pddClientSecret
           "@
-          mkdir C:\giftgpt\config -Force | Out-Null
-          $config | Set-Content C:\giftgpt\config\application-prod.yml -Force
-          Get-CimInstance Win32_Process -Filter "Name='java.exe'" | Where-Object { $_.CommandLine -like '*giftgpt*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
-          Start-Sleep 2
-          schtasks /End /TN "GiftGPT-Backend" 2>$null | Out-Null
-          schtasks /Run /TN "GiftGPT-Backend" | Out-Null
+          $config | Set-Content -Path $oldConfig -Encoding utf8 -Force
+
+          schtasks.exe /End /TN "GiftGPT-Backend" 2>&1 | Out-Null
+          schtasks.exe /Run /TN "GiftGPT-Backend" 2>&1 | Out-Null
+          Write-Output "BACKEND DEPLOYED AND TASK STARTED"
+          exit 0
       - name: Verify backend
         shell: powershell
         run: |
