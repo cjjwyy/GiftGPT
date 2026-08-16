@@ -79,13 +79,25 @@ public class OrderService {
         return order;
     }
 
+    private GiftRecord loadOwnGiftRecord(Long giftRecordId) {
+        Long userId = StpUtil.getLoginIdAsLong();
+        GiftRecord record = giftRecordMapper.selectById(giftRecordId);
+        if (record == null) {
+            throw new BusinessException(ResultCode.GIFT_RECORD_NOT_FOUND);
+        }
+        if (!record.getUserId().equals(userId)) {
+            throw new BusinessException(ResultCode.FORBIDDEN);
+        }
+        return record;
+    }
+
     public OrderDetailResponse getOrderDetail(Long id) {
         Order order = orderMapper.selectById(id);
         if (order == null) {
             throw new BusinessException(ResultCode.ORDER_NOT_FOUND);
         }
 
-        GiftRecord giftRecord = giftRecordMapper.selectById(order.getGiftRecordId());
+        GiftRecord giftRecord = loadOwnGiftRecord(order.getGiftRecordId());
         Recipient recipient = recipientMapper.selectById(giftRecord.getRecipientId());
         Packaging packaging = packagingMapper.selectOne(
                 new LambdaQueryWrapper<Packaging>().eq(Packaging::getOrderId, order.getId()));
@@ -111,6 +123,7 @@ public class OrderService {
     }
 
     public LogisticsResponse getLogistics(Long giftRecordId) {
+        loadOwnGiftRecord(giftRecordId);
         Order order = orderMapper.selectOne(
             new LambdaQueryWrapper<Order>().eq(Order::getGiftRecordId, giftRecordId));
         if (order == null) throw new BusinessException(ResultCode.ORDER_NOT_FOUND);
@@ -157,12 +170,14 @@ public class OrderService {
     }
 
     public Feedback submitFeedback(Long giftRecordId, Feedback feedback) {
+        loadOwnGiftRecord(giftRecordId);
         feedback.setGiftRecordId(giftRecordId);
         feedbackMapper.insert(feedback);
         return feedback;
     }
 
     public List<Feedback> listFeedback(Long giftRecordId) {
+        loadOwnGiftRecord(giftRecordId);
         return feedbackMapper.selectList(
             new LambdaQueryWrapper<Feedback>()
                 .eq(Feedback::getGiftRecordId, giftRecordId)
