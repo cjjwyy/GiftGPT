@@ -20,6 +20,12 @@ jobs:
         working-directory: frontend/giftgpt-web
         run: |
           npm install --no-audit --no-fund --registry=https://registry.npmmirror.com
+      - name: Lint and typecheck
+        shell: powershell
+        working-directory: frontend/giftgpt-web
+        run: |
+          npm run lint
+          npm run typecheck
       - name: Build standalone
         shell: powershell
         working-directory: frontend/giftgpt-web
