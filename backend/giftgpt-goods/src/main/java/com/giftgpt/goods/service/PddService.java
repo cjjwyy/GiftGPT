@@ -175,6 +175,7 @@ public class PddService {
             params.put("client_id", clientId);
             params.put("timestamp", String.valueOf(System.currentTimeMillis() / 1000));
             params.put("pid", pid);
+            params.put("custom_parameters", "{\"uid\":\"" + USER_UID + "\"}");
             params.put("sign", PlatformApiSigner.signPdd(params, clientSecret));
 
             String body = httpPost(GATEWAY, params);
