@@ -1,4 +1,5 @@
 name: Deploy Backend
+# Self-hosted runner runs as LocalSystem on the server.
 
 on:
   push:
