@@ -4,8 +4,8 @@ import cn.dev33.satoken.stp.StpUtil;
 import cn.hutool.json.JSONUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.giftgpt.common.ai.DeepseekClient;
 import com.giftgpt.common.exception.BusinessException;
 import com.giftgpt.common.result.ResultCode;
 import com.giftgpt.goods.entity.Product;
@@ -28,22 +28,12 @@ import com.giftgpt.user.mapper.RecipientTagMapper;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import javax.net.ssl.HttpsURLConnection;
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.TrustManager;
-import javax.net.ssl.X509TrustManager;
 import java.io.*;
 import java.math.BigDecimal;
-import java.net.HttpURLConnection;
-import java.net.URI;
-import java.net.URL;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
-import java.security.SecureRandom;
-import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
@@ -64,62 +54,11 @@ public class RecommendationService {
     private final ProductMapper productMapper;
     private final CommerceService commerceService;
     private final KnowledgeGraphService knowledgeGraphService;
-
-    @Value("${giftgpt.ai.deepseek.api-key}")
-    private String apiKey;
-
-    @Value("${giftgpt.ai.deepseek.base-url:https://api.deepseek.com/v1}")
-    private String baseUrl;
-
-    @Value("${giftgpt.ai.deepseek.model:deepseek-chat}")
-    private String model;
+    private final DeepseekClient deepseekClient;
 
     private static final ObjectMapper objectMapper = new ObjectMapper();
 
-    // ---------- DTOs for Deepseek API ----------
-
-    @Data
-    static class DeepseekMessage {
-        private String role;
-        private String content;
-    }
-
-    @Data
-    static class DeepseekRequest {
-        private String model;
-        private List<DeepseekMessage> messages;
-        private double temperature = 0.7;
-        @JsonProperty("max_tokens")
-        private int maxTokens = 4096;
-    }
-
-    @Data
-    static class DeepseekChoice {
-        private int index;
-        private DeepseekMessage message;
-        @JsonProperty("finish_reason")
-        private String finishReason;
-    }
-
-    @Data
-    static class DeepseekUsage {
-        @JsonProperty("prompt_tokens")
-        private int promptTokens;
-        @JsonProperty("completion_tokens")
-        private int completionTokens;
-        @JsonProperty("total_tokens")
-        private int totalTokens;
-    }
-
-    @Data
-    static class DeepseekResponse {
-        private String id;
-        private String object;
-        private long created;
-        private String model;
-        private List<DeepseekChoice> choices;
-        private DeepseekUsage usage;
-    }
+    private static final String SYSTEM_PROMPT = "你是一位温暖细腻的礼物推荐AI助手。你总是以JSON格式回复，不添加任何额外的解释或markdown标记。你推荐的礼物贴近生活、实用且有情感价值，语言柔和温暖，善于用收礼人的称谓让每份推荐都更有温度。";
 
     // ---------- AI Gift Result DTO ----------
 
@@ -169,7 +108,8 @@ public class RecommendationService {
 
         AiGiftsResponse resp = new AiGiftsResponse();
         try {
-            AiGiftResult aiResult = callDeepseek(prompt);
+            String content = deepseekClient.chat(SYSTEM_PROMPT, prompt, 4096);
+            AiGiftResult aiResult = parseAiGiftsJson(content);
             resp.setGifts(aiResult.getGifts());
             resp.setSummary(aiResult.getSummary());
         } catch (Exception e) {
@@ -192,7 +132,7 @@ public class RecommendationService {
         // Search platforms for each gift in parallel, then build items
         List<CompletableFuture<RecommendItem>> futures = new ArrayList<>();
         for (AiGift gi : gifts) {
-            futures.add(CompletableFuture.supplyAsync(() -> buildItemFromAiGift(gi)));
+            futures.add(CompletableFuture.supplyAsync(() -> buildItemFromAiGift(gi, request.getBudget())));
         }
         for (CompletableFuture<RecommendItem> f : futures) {
             try {
@@ -287,7 +227,7 @@ public class RecommendationService {
     }
 
     /** Build a RecommendItem from an AI gift: try live platform search, then local DB, then AI hint. */
-    private RecommendItem buildItemFromAiGift(AiGift gi) {
+    private RecommendItem buildItemFromAiGift(AiGift gi, BigDecimal budget) {
         RecommendItem item = new RecommendItem();
         item.setProductName(gi.getName());
         item.setPrice(BigDecimal.valueOf(gi.getPrice()));
@@ -297,7 +237,6 @@ public class RecommendationService {
         }
         item.setReason(reason);
         item.setMatchTags(gi.getTags());
-        item.setScore(0.90 + Math.random() * 0.10);
 
         Product matched = searchPlatformForGift(gi);
         if (matched == null) {
@@ -316,14 +255,50 @@ public class RecommendationService {
             if (matched.getPrice() != null) {
                 item.setPrice(matched.getPrice());
             }
+            double kw = keywordScore(matched.getName(), gi.getName());
+            double fit = priceFit(matched.getPrice(), budget);
+            double sales = salesScore(matched);
+            double score = 0.50 * kw + 0.30 * fit + 0.20 * sales;
+            item.setScore(Math.min(1.0, Math.max(0.0, score)));
         } else {
             item.setProductId(-1L);
             item.setImageUrl("");
             item.setPlatform("拼多多");
             item.setPlatformUrl("https://mobile.yangkeduo.com/search_result.html?search_key="
                     + URLEncoder.encode(gi.getName(), StandardCharsets.UTF_8));
+            item.setScore(0.50);
         }
         return item;
+    }
+
+    private String stripParentheses(String text) {
+        return text == null ? "" : text.replaceAll("[（(].*?[）)]", "").trim();
+    }
+
+    private double keywordScore(String productName, String giftName) {
+        String name = productName == null ? "" : productName.toLowerCase();
+        String gift = stripParentheses(giftName).toLowerCase();
+        String[] kws = gift.split("[\\s,，、]+");
+        int hit = 0;
+        for (String k : kws) {
+            if (k.length() >= 2 && name.contains(k)) {
+                hit++;
+            }
+        }
+        return kws.length == 0 ? 0.0 : Math.min(1.0, (double) hit / kws.length);
+    }
+
+    private double priceFit(BigDecimal productPrice, BigDecimal budget) {
+        if (productPrice == null || budget == null || budget.doubleValue() <= 0) {
+            return 0.5;
+        }
+        double diff = Math.abs(productPrice.doubleValue() - budget.doubleValue());
+        return Math.max(0.0, 1.0 - diff / budget.doubleValue());
+    }
+
+    private double salesScore(Product p) {
+        int sales = p == null || p.getSalesCount() == null ? 0 : p.getSalesCount();
+        return Math.min(1.0, sales / 10000.0);
     }
 
     /** Live platform search: look up the AI gift name on Pinduoduo. */
@@ -502,70 +477,24 @@ public class RecommendationService {
         }
     }
 
-    // ---------- Deepseek API Call ----------
+    // ---------- AI Response Parsing ----------
 
-    private AiGiftResult callDeepseek(String prompt) throws IOException {
-        DeepseekRequest req = new DeepseekRequest();
-        req.setModel(model);
-        req.setTemperature(0.7);
-        req.setMaxTokens(4096);
-
-        List<DeepseekMessage> messages = new ArrayList<>();
-        DeepseekMessage sysMsg = new DeepseekMessage();
-        sysMsg.setRole("system");
-        sysMsg.setContent("你是一位温暖细腻的礼物推荐AI助手。你总是以JSON格式回复，不添加任何额外的解释或markdown标记。你推荐的礼物贴近生活、实用且有情感价值，语言柔和温暖，善于用收礼人的称谓让每份推荐都更有温度。");
-        messages.add(sysMsg);
-
-        DeepseekMessage userMsg = new DeepseekMessage();
-        userMsg.setRole("user");
-        userMsg.setContent(prompt);
-        messages.add(userMsg);
-
-        req.setMessages(messages);
-
-        // Configure ObjectMapper to ignore unknown properties
-        objectMapper.configure(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-
-        String jsonBody = objectMapper.writeValueAsString(req);
-        log.info("Calling Deepseek API: model={}, prompt length={}", model, prompt.length());
-
-        URL url = new URL(baseUrl + "/chat/completions");
-        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-        conn.setRequestMethod("POST");
-        conn.setRequestProperty("Authorization", "Bearer " + apiKey);
-        conn.setRequestProperty("Content-Type", "application/json");
-        conn.setDoOutput(true);
-        conn.setConnectTimeout(60000);
-        conn.setReadTimeout(120000);
-
-        try (OutputStream os = conn.getOutputStream()) {
-            os.write(jsonBody.getBytes(StandardCharsets.UTF_8));
+    private AiGiftResult parseAiGiftsJson(String content) throws IOException {
+        String json = DeepseekClient.stripMarkdown(content);
+        try {
+            return objectMapper.readValue(json, AiGiftResult.class);
+        } catch (Exception e) {
+            log.warn("Direct JSON parse failed, trying to extract first JSON object: {}", e.getMessage());
+            int start = json.indexOf('{');
+            int endIdx = json.lastIndexOf('}');
+            if (start >= 0 && endIdx > start) {
+                return objectMapper.readValue(json.substring(start, endIdx + 1), AiGiftResult.class);
+            }
+            if (e instanceof IOException) {
+                throw (IOException) e;
+            }
+            throw new IOException("Failed to parse AI gift JSON", e);
         }
-
-        int code = conn.getResponseCode();
-        InputStream is = code >= 200 && code < 300 ? conn.getInputStream() : conn.getErrorStream();
-        String respBody = new String(is.readAllBytes(), StandardCharsets.UTF_8);
-
-        if (code != 200) {
-            log.error("Deepseek API error: HTTP {} body={}", code, respBody);
-            throw new IOException("Deepseek API returned " + code + ": " + respBody);
-        }
-
-        log.info("Deepseek API response received, length={}", respBody.length());
-        DeepseekResponse dsResp = objectMapper.readValue(respBody, DeepseekResponse.class);
-
-        String content = dsResp.getChoices().get(0).getMessage().getContent();
-        log.info("Deepseek response content length={}", content.length());
-
-        // Strip markdown code blocks if present
-        String jsonContent = content.trim();
-        if (jsonContent.startsWith("```")) {
-            int start = jsonContent.indexOf("\n") + 1;
-            int end = jsonContent.lastIndexOf("```");
-            if (end > start) jsonContent = jsonContent.substring(start, end).trim();
-        }
-
-        return objectMapper.readValue(jsonContent, AiGiftResult.class);
     }
 
     // ---------- History & Feedback ----------
@@ -649,7 +578,7 @@ public class RecommendationService {
         items.add(buildItem(12L, "北欧极简香薰蜡烛礼盒", new BigDecimal("89.00"), "营造温馨氛围"));
         return items.stream()
                 .filter(item -> item.getPrice().compareTo(request.getBudget()) <= 0)
-                .peek(item -> item.setScore(0.80 + Math.random() * 0.20))
+                .peek(item -> item.setScore(0.80))
                 .sorted((a, b) -> Double.compare(b.getScore(), a.getScore()))
                 .limit(8)
                 .collect(Collectors.toList());
