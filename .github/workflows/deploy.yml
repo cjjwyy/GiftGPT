@@ -43,19 +43,24 @@ jobs:
           PDD_CLIENT_SECRET: ${{ secrets.PDD_CLIENT_SECRET }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
         run: |
-          $ErrorActionPreference = 'Stop'
-          $workspace = (Get-Location).Path
-          $target = 'C:\giftgpt'
-          $configDir = Join-Path $target 'config'
-          New-Item -ItemType Directory -Force -Path $configDir | Out-Null
+          Start-Transcript -Path C:\giftgpt\deploy-transcript.log -Force
+          try {
+            $ErrorActionPreference = 'Stop'
+            $workspace = (Get-Location).Path
+            $target = 'C:\giftgpt'
+            $configDir = Join-Path $target 'config'
+            New-Item -ItemType Directory -Force -Path $configDir | Out-Null
+            Write-Output "WORKSPACE=$workspace"
 
-          # Stop the running app before replacing the jar (avoids file lock)
-          Get-CimInstance Win32_Process -Filter "Name='java.exe'" | Where-Object { $_.CommandLine -like '*giftgpt-server-1.0.0-SNAPSHOT.jar*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
-          Start-Sleep -Seconds 2
+            # Stop the running app before replacing the jar (avoids file lock)
+            Get-CimInstance Win32_Process -Filter "Name='java.exe'" | Where-Object { $_.CommandLine -like '*giftgpt-server-1.0.0-SNAPSHOT.jar*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+            Start-Sleep -Seconds 2
 
-          $jarSource = Join-Path $workspace 'backend\giftgpt-server\target\giftgpt-server-1.0.0-SNAPSHOT.jar'
-          if (-not (Test-Path $jarSource)) { throw "Jar not found: $jarSource" }
-          Copy-Item $jarSource (Join-Path $target 'giftgpt-server-1.0.0-SNAPSHOT.jar') -Force
+            $jarSource = Join-Path $workspace 'backend\giftgpt-server\target\giftgpt-server-1.0.0-SNAPSHOT.jar'
+            $jarDest = Join-Path $target 'giftgpt-server-1.0.0-SNAPSHOT.jar'
+            Write-Output "JAR_SOURCE=$jarSource EXISTS=$(Test-Path $jarSource)"
+            if (-not (Test-Path $jarSource)) { throw "Jar not found: $jarSource" }
+            Copy-Item $jarSource $jarDest -Force
 
           # JWT secret: GitHub Secret wins; otherwise reuse the persisted server secret file
           $secretFile = Join-Path $configDir 'jwt-secret.txt'
@@ -99,10 +104,18 @@ jobs:
                 client-secret: $pddClientSecret
           "@
           $config | Set-Content -Path $oldConfig -Encoding utf8 -Force
+            Write-Output "CONFIG_WRITTEN=$oldConfig"
 
-          schtasks.exe /End /TN "GiftGPT-Backend" 2>&1 | Out-Null
-          schtasks.exe /Run /TN "GiftGPT-Backend" 2>&1 | Out-Null
-          Write-Output "BACKEND DEPLOYED AND TASK STARTED"
+            cmd /c "schtasks /End /TN GiftGPT-Backend >nul 2>&1"
+            cmd /c "schtasks /Run /TN GiftGPT-Backend >nul 2>&1"
+            Write-Output "BACKEND DEPLOYED AND TASK STARTED"
+          } catch {
+            $_ | Out-String | Set-Content -Path C:\giftgpt\deploy-error.log -Encoding utf8
+            Write-Error $_
+            exit 1
+          } finally {
+            Stop-Transcript -ErrorAction SilentlyContinue
+          }
           exit 0
       - name: Verify backend
         shell: powershell
