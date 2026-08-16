@@ -30,16 +30,32 @@ jobs:
             </mirrors>
           </settings>
           "@ | Set-Content "$settingsDir\settings.xml" -Encoding utf8
-      - run: mvn package -DskipTests -q
+      - name: Run backend tests
+        run: mvn test -q
+        working-directory: backend
+      - name: Package backend
+        run: mvn package -DskipTests -q
         working-directory: backend
       - shell: powershell
         env:
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
           PDD_CLIENT_ID: ${{ secrets.PDD_CLIENT_ID }}
           PDD_CLIENT_SECRET: ${{ secrets.PDD_CLIENT_SECRET }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
         run: |
           Copy-Item backend/giftgpt-server/target/giftgpt-server-1.0.0-SNAPSHOT.jar C:\giftgpt\ -Force
+          $jwtSecret = $env:JWT_SECRET
+          if ([string]::IsNullOrWhiteSpace($jwtSecret)) {
+            $jwtSecret = "giftgpt-prod-temp-" + [guid]::NewGuid().ToString("N")
+            Write-Output "WARN: JWT_SECRET not configured, generated a temporary secret"
+          }
           $config = @"
+          spring:
+            h2:
+              console:
+                enabled: false
+          sa-token:
+            jwt-secret-key: $jwtSecret
           giftgpt:
             ai:
               deepseek:
