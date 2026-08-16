@@ -108,9 +108,13 @@ jobs:
           $config | Set-Content -Path $oldConfig -Encoding utf8 -Force
             Write-Output "CONFIG_WRITTEN=$oldConfig"
 
-            # Start backend directly as the runner service account (it can write data/log files)
-            Start-Process -FilePath 'cmd.exe' -ArgumentList '/c','C:\giftgpt\start-backend.bat' -WindowStyle Hidden
-            Write-Output "BACKEND DEPLOYED AND STARTED"
+            # Start via WMI so the backend process is not killed when the Actions job exits
+            $proc = Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{
+              CommandLine = 'cmd.exe /c C:\giftgpt\start-backend.bat'
+              CurrentDirectory = 'C:\giftgpt'
+            }
+            Write-Output ("BACKEND DEPLOYED AND STARTED PID=" + $proc.ProcessId)
+            if ($proc.ReturnValue -ne 0) { throw "Failed to start backend: $($proc.ReturnValue)" }
           } catch {
             $_ | Out-String | Set-Content -Path C:\giftgpt\deploy-error.log -Encoding utf8
             Write-Error $_
