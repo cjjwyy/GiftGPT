@@ -35,8 +35,12 @@ import java.math.BigDecimal;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Base64;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -60,6 +64,9 @@ public class RecommendationService {
 
     private static final String SYSTEM_PROMPT = "你是一位温暖细腻的礼物推荐AI助手。你总是以JSON格式回复，不添加任何额外的解释或markdown标记。你推荐的礼物贴近生活、实用且有情感价值，语言柔和温暖，善于用收礼人的称谓让每份推荐都更有温度。";
 
+    /** 有补充项的标签：选中后必须填写具体补充项；其余标签为“无补充项” */
+    private static final Set<String> SUPPLEMENT_TAGS = Set.of("音乐", "运动");
+
     // ---------- AI Gift Result DTO ----------
 
     @Data
@@ -79,6 +86,7 @@ public class RecommendationService {
         List<RecipientTag> tags = recipientTagMapper.selectList(
                 new LambdaQueryWrapper<RecipientTag>().eq(RecipientTag::getRecipientId, recipient.getId()));
         List<String> tagNames = tags.stream().map(RecipientTag::getTagName).collect(Collectors.toList());
+        Map<String, List<String>> tagSupplements = loadTagSupplements(recipient.getId());
 
         PersonalitySnapshot snapshot = new PersonalitySnapshot();
         snapshot.setRecipientId(recipient.getId());
@@ -89,9 +97,10 @@ public class RecommendationService {
         snapshot.setMbti(recipient.getMbti());
         snapshot.setPersonality(recipient.getPersonality());
         snapshot.setTags(tagNames);
+        snapshot.setTagSupplements(tagSupplements);
         snapshot.setRecentPurchases(recipient.getRecentPurchases());
         snapshot.setNote(recipient.getNote());
-        snapshot.setAnalysis(buildAnalysis(recipient, tagNames));
+        snapshot.setAnalysis(buildAnalysis(recipient, tagNames, tagSupplements));
         return snapshot;
     }
 
@@ -102,19 +111,20 @@ public class RecommendationService {
         List<RecipientTag> tags = recipientTagMapper.selectList(
                 new LambdaQueryWrapper<RecipientTag>().eq(RecipientTag::getRecipientId, recipient.getId()));
         List<String> tagNames = tags.stream().map(RecipientTag::getTagName).collect(Collectors.toList());
+        Map<String, List<String>> tagSupplements = loadTagSupplements(recipient.getId());
 
         String occasionLabel = translateOccasion(request.getOccasion());
-        String prompt = buildPrompt(recipient, tagNames, occasionLabel, request.getBudget(), request.getExtraNote());
+        String prompt = buildPrompt(recipient, tagNames, tagSupplements, occasionLabel, request.getBudget(), request.getExtraNote());
 
         AiGiftsResponse resp = new AiGiftsResponse();
         try {
             String content = deepseekClient.chat(SYSTEM_PROMPT, prompt, 4096);
             AiGiftResult aiResult = parseAiGiftsJson(content);
-            resp.setGifts(aiResult.getGifts());
+            resp.setGifts(filterAiGiftsBySupplements(aiResult.getGifts(), tagSupplements));
             resp.setSummary(aiResult.getSummary());
         } catch (Exception e) {
             log.error("Deepseek API call failed, using tag-based fallback", e);
-            resp.setGifts(fallbackAiGifts(request, tagNames));
+            resp.setGifts(filterAiGiftsBySupplements(fallbackAiGifts(request, tagNames), tagSupplements));
             resp.setSummary("AI 服务暂时不可用，以下为基于标签的推荐结果");
         }
         return resp;
@@ -125,6 +135,7 @@ public class RecommendationService {
         Long userId = StpUtil.getLoginIdAsLong();
         Recipient recipient = loadOwnRecipient(request.getRecipientId(), userId);
         String occasionLabel = translateOccasion(request.getOccasion());
+        Map<String, List<String>> tagSupplements = loadTagSupplements(recipient.getId());
 
         List<RecommendItem> items = new ArrayList<>();
         List<AiGift> gifts = request.getGifts() != null ? request.getGifts() : new ArrayList<>();
@@ -167,6 +178,11 @@ public class RecommendationService {
             log.info("KG enhancement added {} items (total now {})", kgItems.size(), items.size());
         }
 
+        // 最后一步：用补充项过滤掉明显不符合的商品（如音乐-吉他不能留下羽毛球拍）
+        int beforeSupplementFilter = items.size();
+        items = filterItemsBySupplements(items, tagSupplements);
+        log.info("Supplement filter: {} -> {} items", beforeSupplementFilter, items.size());
+
         // Sort: KG items (with reasoningChain) last, or by score descending
         items.sort((a, b) -> {
             double sa = a.getScore() != null ? a.getScore() : 0;
@@ -208,7 +224,7 @@ public class RecommendationService {
         return recipient;
     }
 
-    private String buildAnalysis(Recipient recipient, List<String> tags) {
+    private String buildAnalysis(Recipient recipient, List<String> tags, Map<String, List<String>> tagSupplements) {
         StringBuilder sb = new StringBuilder();
         if (recipient.getMbti() != null && !recipient.getMbti().isBlank()) {
             sb.append("MBTI ").append(recipient.getMbti()).append("，");
@@ -218,6 +234,10 @@ public class RecommendationService {
         }
         if (!tags.isEmpty()) {
             sb.append("兴趣标签：").append(String.join("、", tags)).append("。");
+        }
+        String supplementText = formatTagSupplements(tagSupplements);
+        if (!supplementText.isEmpty()) {
+            sb.append("标签补充项：").append(supplementText).append("。");
         }
         if (recipient.getRelation() != null) {
             sb.append("关系：").append(recipient.getRelation()).append("。");
@@ -356,6 +376,79 @@ public class RecommendationService {
         return g;
     }
 
+    /** 从 recipient_tag.supplement 读取有补充项标签的具体补充项 */
+    private Map<String, List<String>> loadTagSupplements(Long recipientId) {
+        List<RecipientTag> tags = recipientTagMapper.selectList(
+                new LambdaQueryWrapper<RecipientTag>().eq(RecipientTag::getRecipientId, recipientId));
+        Map<String, List<String>> result = new LinkedHashMap<>();
+        for (RecipientTag tag : tags) {
+            if (!SUPPLEMENT_TAGS.contains(tag.getTagName())) continue;
+            if (tag.getSupplement() == null || tag.getSupplement().isBlank()) continue;
+            List<String> items = Arrays.stream(tag.getSupplement().split("[、,，;；]"))
+                    .map(String::trim)
+                    .filter(item -> !item.isEmpty())
+                    .collect(Collectors.toList());
+            if (!items.isEmpty()) result.put(tag.getTagName(), items);
+        }
+        return result;
+    }
+
+    private String formatTagSupplements(Map<String, List<String>> tagSupplements) {
+        if (tagSupplements == null || tagSupplements.isEmpty()) return "";
+        List<String> parts = new ArrayList<>();
+        tagSupplements.forEach((tag, items) ->
+                parts.add(tag + "：" + String.join("、", items)));
+        return String.join("；", parts);
+    }
+
+    private List<String> flattenSupplementValues(Map<String, List<String>> tagSupplements) {
+        List<String> values = new ArrayList<>();
+        if (tagSupplements == null) return values;
+        for (List<String> items : tagSupplements.values()) {
+            if (items != null) values.addAll(items);
+        }
+        return values;
+    }
+
+    private boolean containsAnyKeyword(String text, List<String> keywords) {
+        if (text == null || text.isBlank() || keywords == null || keywords.isEmpty()) return false;
+        String lower = text.toLowerCase();
+        for (String keyword : keywords) {
+            if (keyword != null && !keyword.isBlank() && lower.contains(keyword.toLowerCase())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** AI 候选礼物按补充项过滤：只保留名称/理由/匹配点中出现补充项的礼物 */
+    private List<AiGift> filterAiGiftsBySupplements(List<AiGift> gifts, Map<String, List<String>> tagSupplements) {
+        List<String> keywords = flattenSupplementValues(tagSupplements);
+        if (gifts == null) return new ArrayList<>();
+        if (keywords.isEmpty()) return gifts;
+        return gifts.stream().filter(g -> {
+            String text = String.join(" ",
+                    g.getName() == null ? "" : g.getName(),
+                    g.getReason() == null ? "" : g.getReason(),
+                    g.getTags() == null ? "" : String.join(" ", g.getTags()));
+            return containsAnyKeyword(text, keywords);
+        }).collect(Collectors.toList());
+    }
+
+    /** 最终推荐商品按补充项过滤：只保留商品名/推荐理由/匹配标签中出现补充项的商品 */
+    private List<RecommendItem> filterItemsBySupplements(List<RecommendItem> items, Map<String, List<String>> tagSupplements) {
+        List<String> keywords = flattenSupplementValues(tagSupplements);
+        if (items == null) return new ArrayList<>();
+        if (keywords.isEmpty()) return items;
+        return items.stream().filter(item -> {
+            String text = String.join(" ",
+                    item.getProductName() == null ? "" : item.getProductName(),
+                    item.getReason() == null ? "" : item.getReason(),
+                    item.getMatchTags() == null ? "" : String.join(" ", item.getMatchTags()));
+            return containsAnyKeyword(text, keywords);
+        }).collect(Collectors.toList());
+    }
+
     private void saveHistory(Long userId, Long recipientId, String occasion,
                              BigDecimal budget, RecommendResponse response) {
         RecommendationHistory history = new RecommendationHistory();
@@ -402,8 +495,8 @@ public class RecommendationService {
 
     // ---------- Prompt Engineering ----------
 
-    private String buildPrompt(Recipient recipient, List<String> tags, String occasion,
-                               BigDecimal budget, String extraNote) {
+    private String buildPrompt(Recipient recipient, List<String> tags, Map<String, List<String>> tagSupplements,
+                               String occasion, BigDecimal budget, String extraNote) {
         String tagStr = tags.isEmpty() ? "暂无标签" : String.join("、", tags);
         String relationStr = recipient.getRelation() != null ? recipient.getRelation() : "未指定";
         String genderStr;
@@ -415,6 +508,7 @@ public class RecommendationService {
         String personalityStr = recipient.getPersonality() != null && !recipient.getPersonality().isBlank() ? recipient.getPersonality() : "未填写";
         String purchasesStr = recipient.getRecentPurchases() != null && !recipient.getRecentPurchases().isBlank() ? recipient.getRecentPurchases() : "未填写";
         String noteStr = recipient.getNote() != null ? recipient.getNote() : "";
+        String supplementStr = formatTagSupplements(tagSupplements);
         String extraStr = extraNote != null && !extraNote.isBlank() ? extraNote : "";
 
         return String.format(
@@ -429,6 +523,7 @@ public class RecommendationService {
             "- MBTI人格：%s\n" +
             "- 性格特点：%s\n" +
             "- 兴趣标签：%s\n" +
+            "- 标签补充项：%s\n" +
             "- 最近购买/关注：%s\n" +
             "- 备注：%s\n" +
             "\n" +
@@ -443,7 +538,8 @@ public class RecommendationService {
             "4. 参考最近购买/关注，避免重复品类，可做有益补充；\n" +
             "5. 每件标注购买平台为拼多多；\n" +
             "6. 若有 MBTI，按人格特质匹配（如 INTJ 偏好实用工具/高质感，ENFP 偏好创意/体验，ISFJ 偏好温馨实用）；\n" +
-            "7. 推荐理由须在25字以内，以\"动词+称谓\"开头（如\"让妈妈\"\"给朋友\"\"送TA\"），语言柔和温暖，让收礼人感受到被理解与珍视。\n" +
+            "7. 若某个兴趣标签带有补充项，只推荐与该补充项强相关的礼物，不得推荐不符合补充项的商品（例如音乐-吉他只能推吉他/贝斯相关，运动-羽毛球只能推羽毛球相关）；\n" +
+            "8. 推荐理由须在25字以内，以\"动词+称谓\"开头（如\"让妈妈\"\"给朋友\"\"送TA\"），语言柔和温暖，让收礼人感受到被理解与珍视。\n" +
             "\n" +
             "严格按以下 JSON 返回（不要 markdown 代码块、不要多余文字）：\n" +
             "{\n" +
@@ -458,7 +554,8 @@ public class RecommendationService {
             "  ],\n" +
             "  \"summary\": \"一句话总结推荐策略，50 字以内\"\n" +
             "}",
-            recipient.getName(), relationStr, genderStr, ageStr, mbtiStr, personalityStr, tagStr, purchasesStr, noteStr,
+            recipient.getName(), relationStr, genderStr, ageStr, mbtiStr, personalityStr, tagStr,
+            supplementStr.isEmpty() ? "暂无" : supplementStr, purchasesStr, noteStr,
             occasion, budget,
             extraStr.isEmpty() ? "" : "【额外说明】" + extraStr + "\n"
         );

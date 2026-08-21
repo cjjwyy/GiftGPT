@@ -4,12 +4,8 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { recipientApi } from '@/lib/api';
 import { toast } from 'react-hot-toast';
-
-const TAG_OPTIONS = [
-  '开朗', '文艺', '极客', '养生派', '摄影', '户外', '音乐', '运动',
-  '美食', '咖啡', '旅行', '阅读', '动漫', '游戏', '宠物', '科技',
-  '时尚', '简约', '复古', '浪漫', '艺术', '理性',
-];
+import TagPicker from '@/components/TagPicker';
+import { SUPPLEMENT_TAGS, buildTagSupplements } from '@/lib/tagOptions';
 
 const MBTI_OPTIONS = [
   'INTJ', 'INTP', 'ENTJ', 'ENTP', 'INFJ', 'INFP', 'ENFJ', 'ENFP',
@@ -24,20 +20,43 @@ export default function NewRecipientPage() {
   const [mbti, setMbti] = useState('');
   const [personality, setPersonality] = useState('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [supplementTexts, setSupplementTexts] = useState<Record<string, string>>({});
   const [recentPurchases, setRecentPurchases] = useState('');
   const [note, setNote] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const toggleTag = (tag: string) => {
-    setSelectedTags(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]);
+  const handleTagsChange = (tags: string[]) => {
+    setSelectedTags(tags);
+    setSupplementTexts(prev => {
+      const next = { ...prev };
+      for (const tag of SUPPLEMENT_TAGS) {
+        if (!tags.includes(tag)) delete next[tag];
+      }
+      return next;
+    });
+  };
+
+  const handleSupplementChange = (tag: string, value: string) => {
+    setSupplementTexts(prev => ({ ...prev, [tag]: value }));
   };
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) { toast.error('请输入收礼人姓名'); return; }
+    const missingSupplements = selectedTags.filter(
+      tag => SUPPLEMENT_TAGS.includes(tag) && !(supplementTexts[tag] || '').trim()
+    );
+    if (missingSupplements.length > 0) {
+      toast.error(`请填写补充项：${missingSupplements.join('、')}`);
+      return;
+    }
     setLoading(true);
     try {
-      await recipientApi.create({ name, relation, gender, mbti, personality, tags: selectedTags, recentPurchases, note });
+      await recipientApi.create({
+        name, relation, gender, mbti, personality, tags: selectedTags,
+        tagSupplements: buildTagSupplements(selectedTags, supplementTexts),
+        recentPurchases, note,
+      });
       toast.success('画像创建成功');
       setTimeout(() => router.push('/recipients'), 500);
     } catch (err: any) {
@@ -91,16 +110,13 @@ export default function NewRecipientPage() {
           </div>
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">性格标签 (可多选)</label>
-          <div className="flex flex-wrap gap-2">
-            {TAG_OPTIONS.map(tag => (
-              <button key={tag} type="button"
-                className={selectedTags.includes(tag) ? 'tag-selected' : 'tag cursor-pointer hover:bg-primary-100'}
-                onClick={() => toggleTag(tag)}>
-                {tag}
-              </button>
-            ))}
-          </div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">性格/兴趣标签 (可多选)</label>
+          <TagPicker
+            selectedTags={selectedTags}
+            supplementTexts={supplementTexts}
+            onTagsChange={handleTagsChange}
+            onSupplementChange={handleSupplementChange}
+          />
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">最近购买/关注</label>

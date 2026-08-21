@@ -6,12 +6,12 @@ import { useParams, useRouter } from 'next/navigation';
 import { Loading } from '@/components/Loading';
 import { toast } from 'react-hot-toast';
 import Link from 'next/link';
-
-const TAG_OPTIONS = [
-  '开朗', '文艺', '极客', '养生派', '摄影', '户外', '音乐', '运动',
-  '美食', '咖啡', '旅行', '阅读', '动漫', '游戏', '宠物', '科技',
-  '时尚', '简约', '复古', '浪漫', '艺术', '理性',
-];
+import TagPicker from '@/components/TagPicker';
+import {
+  SUPPLEMENT_TAGS,
+  buildTagSupplements,
+  formatSupplementText,
+} from '@/lib/tagOptions';
 
 export default function RecipientDetailPage() {
   const params = useParams();
@@ -23,22 +23,50 @@ export default function RecipientDetailPage() {
   const [name, setName] = useState('');
   const [relation, setRelation] = useState('');
   const [tags, setTags] = useState<string[]>([]);
+  const [supplementTexts, setSupplementTexts] = useState<Record<string, string>>({});
 
   useEffect(() => {
     recipientApi.get(id).then(d => {
       setDetail(d);
       setName(d.name); setRelation(d.relation || ''); setTags(d.tags || []);
+      const loaded: Record<string, string> = {};
+      const tagSupplements = d.tagSupplements || {};
+      for (const [tag, items] of Object.entries(tagSupplements)) {
+        loaded[tag] = formatSupplementText(items as string[]);
+      }
+      setSupplementTexts(loaded);
       setLoading(false);
     }).catch(() => setLoading(false));
   }, [id]);
 
-  const toggleTag = (tag: string) => {
-    setTags(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]);
+  const handleTagsChange = (nextTags: string[]) => {
+    setTags(nextTags);
+    setSupplementTexts(prev => {
+      const next = { ...prev };
+      for (const tag of SUPPLEMENT_TAGS) {
+        if (!nextTags.includes(tag)) delete next[tag];
+      }
+      return next;
+    });
+  };
+
+  const handleSupplementChange = (tag: string, value: string) => {
+    setSupplementTexts(prev => ({ ...prev, [tag]: value }));
   };
 
   const onSave = async () => {
+    const missingSupplements = tags.filter(
+      tag => SUPPLEMENT_TAGS.includes(tag) && !(supplementTexts[tag] || '').trim()
+    );
+    if (missingSupplements.length > 0) {
+      toast.error(`请填写补充项：${missingSupplements.join('、')}`);
+      return;
+    }
     try {
-      await recipientApi.update(id, { name, relation, tags });
+      await recipientApi.update(id, {
+        name, relation, tags,
+        tagSupplements: buildTagSupplements(tags, supplementTexts),
+      });
       setEditing(false);
       toast.success('已更新');
     } catch (err: any) { toast.error(err.message); }
@@ -73,19 +101,27 @@ export default function RecipientDetailPage() {
           )}
         </div>
         <div>
-          <label className="text-sm text-gray-500 dark:text-gray-400 mb-2 block">性格标签</label>
+          <label className="text-sm text-gray-500 dark:text-gray-400 mb-2 block">性格/兴趣标签</label>
           {editing ? (
-            <div className="flex flex-wrap gap-2">
-              {TAG_OPTIONS.map(t => (
-                <button key={t} type="button"
-                  className={tags.includes(t) ? 'tag-selected' : 'tag cursor-pointer hover:bg-primary-100'}
-                  onClick={() => toggleTag(t)}>{t}</button>
-              ))}
-            </div>
+            <TagPicker
+              selectedTags={tags}
+              supplementTexts={supplementTexts}
+              onTagsChange={handleTagsChange}
+              onSupplementChange={handleSupplementChange}
+            />
           ) : (
-            <div className="flex flex-wrap gap-1">
-              {detail.tags?.map((t: string) => <span key={t} className="tag">{t}</span>)}
-              {(!detail.tags || detail.tags.length === 0) && <span className="text-gray-400 dark:text-gray-500">暂无标签</span>}
+            <div className="space-y-2">
+              <div className="flex flex-wrap gap-1">
+                {detail.tags?.map((t: string) => <span key={t} className="tag">{t}</span>)}
+                {(!detail.tags || detail.tags.length === 0) && <span className="text-gray-400 dark:text-gray-500">暂无标签</span>}
+              </div>
+              {Object.keys(detail.tagSupplements || {}).length > 0 && (
+                <div className="text-sm text-gray-600 dark:text-gray-300 space-y-1">
+                  {Object.entries(detail.tagSupplements).map(([tag, items]: any) => (
+                    <p key={tag}>{tag}：{formatSupplementText(items)}</p>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>

@@ -15,6 +15,7 @@ class RecommendRequest(BaseModel):
     occasion: str
     budget: float
     extra_note: Optional[str] = None
+    tag_supplements: Optional[dict[str, list[str]]] = None
 
 
 class RecommendItem(BaseModel):
@@ -57,11 +58,17 @@ _SYSTEM = (
 
 def _build_prompt(req: RecommendRequest) -> str:
     tags_str = "、".join(req.personality_tags) if req.personality_tags else "暂无标签"
+    supplement_str = "暂无"
+    if req.tag_supplements:
+        supplement_str = "；".join(
+            f"{tag}：{'、'.join(items)}" for tag, items in req.tag_supplements.items() if items
+        )
     extra = f"【额外说明】{req.extra_note}\n" if req.extra_note else ""
     return (
         f"请基于下方收礼人的完整画像，在指定场景和预算内，推荐 5-8 件最合适的礼物。\n"
         f"\n"
         f"【收礼人标签】{tags_str}\n"
+        f"【标签补充项】{supplement_str}\n"
         f"【送礼场景】{req.occasion}\n"
         f"【预算】¥{req.budget}（推荐价格应在预算的60%-100%之间，不要远低于预算）\n"
         f"{extra}"
@@ -70,8 +77,19 @@ def _build_prompt(req: RecommendRequest) -> str:
         f"1. 综合考虑关系、性别、年龄段、MBTI、性格特点、兴趣标签等画像信息；\n"
         f"2. 兼顾情感价值与实用性；\n"
         f"3. 价格尽量接近预算（60%-100%），不要推荐远低于预算的廉价品；\n"
-        f"4. 推荐理由须在25字以内，以\"动词+称谓\"开头，语言柔和温暖。\n"
+        f"4. 若兴趣标签带有补充项，只推荐与补充项强相关的礼物，排除不符合补充项的商品；\n"
+        f"5. 推荐理由须在25字以内，以\"动词+称谓\"开头，语言柔和温暖。\n"
     )
+
+
+def _matches_supplements(name: str, reason: str, tags: list[str], req: RecommendRequest) -> bool:
+    if not req.tag_supplements:
+        return True
+    values = [v for items in req.tag_supplements.values() for v in (items or [])]
+    if not values:
+        return True
+    text = " ".join([name or "", reason or "", " ".join(tags or [])]).lower()
+    return any(v and v.lower() in text for v in values)
 
 
 @router.post("/recommend", response_model=RecommendResponse)
@@ -95,6 +113,12 @@ async def recommend(request: RecommendRequest):
         {"role": "system", "content": _SYSTEM},
         {"role": "user", "content": prompt},
     ])
+
+    if request.tag_supplements:
+        result.gifts = [
+            g for g in result.gifts
+            if _matches_supplements(g.name, g.reason, g.tags, request)
+        ]
 
     items = [
         RecommendItem(

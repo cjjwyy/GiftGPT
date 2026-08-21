@@ -17,7 +17,11 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -49,6 +53,7 @@ public class RecipientService {
                 tag.setRecipientId(recipient.getId());
                 tag.setTagCode(tagCode);
                 tag.setTagName(tagCode);
+                tag.setSupplement(joinSupplement(request.getTagSupplements(), tagCode));
                 tagMapper.insert(tag);
             }
         }
@@ -75,6 +80,7 @@ public class RecipientService {
                 tag.setRecipientId(id);
                 tag.setTagCode(tagCode);
                 tag.setTagName(tagCode);
+                tag.setSupplement(joinSupplement(request.getTagSupplements(), tagCode));
                 tagMapper.insert(tag);
             }
         }
@@ -114,12 +120,34 @@ public class RecipientService {
         resp.setRecentPurchases(recipient.getRecentPurchases());
         resp.setNote(recipient.getNote());
         resp.setTags(tags.stream().map(RecipientTag::getTagCode).collect(Collectors.toList()));
+        Map<String, List<String>> tagSupplements = new LinkedHashMap<>();
+        for (RecipientTag tag : tags) {
+            if (tag.getSupplement() != null && !tag.getSupplement().isBlank()) {
+                tagSupplements.put(tag.getTagCode(), splitSupplement(tag.getSupplement()));
+            }
+        }
+        resp.setTagSupplements(tagSupplements);
         if (profile != null) {
             resp.setPersonalityDesc(profile.getPersonalityDesc());
             resp.setHobbyList(profile.getHobbyList());
             resp.setSocialAnalysis(profile.getSocialAnalysis());
         }
         return resp;
+    }
+
+    private String joinSupplement(Map<String, List<String>> tagSupplements, String tagCode) {
+        if (tagSupplements == null || tagSupplements.get(tagCode) == null
+                || tagSupplements.get(tagCode).isEmpty()) {
+            return null;
+        }
+        return String.join("、", tagSupplements.get(tagCode));
+    }
+
+    private List<String> splitSupplement(String supplement) {
+        return Arrays.stream(supplement.split("[、,，;；]"))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .collect(Collectors.toCollection(ArrayList::new));
     }
 
     private Recipient getOwnRecipient(Long id) {

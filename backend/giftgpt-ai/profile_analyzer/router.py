@@ -30,7 +30,7 @@ class ProfileAnalyzeResponse(BaseModel):
 class _Profile(LCBaseModel):
     personality_desc: str = Field(description="性格描述，30字以内")
     hobbies: List[str] = Field(description="兴趣列表，5个以内")
-    suggested_tags: List[str] = Field(description="建议的兴趣标签，从以下选择：开朗、文艺、极客、养生派、摄影、户外、音乐、运动、美食、咖啡、旅行、阅读、动漫、游戏、宠物、科技、时尚、简约、复古、浪漫、艺术、理性")
+    suggested_tags: List[str] = Field(description="建议的兴趣标签，从以下选择：开朗、文艺、极客、养生派、摄影、户外、音乐、运动、美食、咖啡、旅行、阅读、动漫、游戏、宠物、科技、时尚、简约、复古、浪漫、艺术、理性、爱美、感性、品茶、护肤、抽烟、条理、热血、自律、贝斯、与兴趣无关、与性格无关")
     confidence: float = Field(description="置信度0-1", ge=0, le=1)
 
 

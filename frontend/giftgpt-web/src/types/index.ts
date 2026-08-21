@@ -31,6 +31,7 @@ export interface RecipientDetail {
   recentPurchases?: string;
   note?: string;
   tags: string[];
+  tagSupplements?: Record<string, string[]>;
   personalityDesc?: string;
   hobbyList?: string;
   socialAnalysis?: string;

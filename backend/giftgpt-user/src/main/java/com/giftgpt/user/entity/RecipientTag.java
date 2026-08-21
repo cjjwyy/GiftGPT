@@ -13,4 +13,6 @@ public class RecipientTag extends BaseEntity {
     private Long recipientId;
     private String tagCode;
     private String tagName;
+    /** 有补充项标签的具体补充项，多个用顿号分隔 */
+    private String supplement;
 }

@@ -1,0 +1,41 @@
+// 性格/兴趣标签统一词表。
+// 前 22 个来自《GiftGPT知识图谱分类映射表》；后续为三人标注差异分析“修正框架”新增。
+export const TAG_OPTIONS = [
+  '开朗', '文艺', '极客', '养生派', '摄影', '户外', '音乐', '运动',
+  '美食', '咖啡', '旅行', '阅读', '动漫', '游戏', '宠物', '科技',
+  '时尚', '简约', '复古', '浪漫', '艺术', '理性',
+  '爱美', '感性', '品茶', '护肤', '抽烟', '条理', '热血', '自律', '贝斯',
+  '与兴趣无关', '与性格无关',
+];
+
+// 有补充项的标签：选中后必须填写具体补充项；其余标签自动归为“无补充项”。
+export const TAG_SUPPLEMENT_EXAMPLES: Record<string, string[]> = {
+  '音乐': ['吉他', '贝斯', '古典', 'Taylor Swift'],
+  '运动': ['羽毛球', '健身', '跑步'],
+};
+
+export const SUPPLEMENT_TAGS = Object.keys(TAG_SUPPLEMENT_EXAMPLES);
+
+export function parseSupplementText(text: string): string[] {
+  return (text || '')
+    .split(/[、,，;；]/)
+    .map(item => item.trim())
+    .filter(Boolean);
+}
+
+export function formatSupplementText(items: string[] | undefined): string {
+  return (items || []).join('、');
+}
+
+export function buildTagSupplements(
+  selectedTags: string[],
+  supplementTexts: Record<string, string>
+): Record<string, string[]> {
+  const result: Record<string, string[]> = {};
+  for (const tag of SUPPLEMENT_TAGS) {
+    if (!selectedTags.includes(tag)) continue;
+    const items = parseSupplementText(supplementTexts[tag] || '');
+    if (items.length > 0) result[tag] = items;
+  }
+  return result;
+}

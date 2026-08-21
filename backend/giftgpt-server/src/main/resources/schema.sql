@@ -50,6 +50,7 @@ CREATE TABLE IF NOT EXISTS recipient_tag (
     recipient_id BIGINT NOT NULL,
     tag_code VARCHAR(50) NOT NULL,
     tag_name VARCHAR(50) NOT NULL,
+    supplement VARCHAR(500),
     create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -237,6 +238,7 @@ ALTER TABLE recommendation_history ADD COLUMN IF NOT EXISTS update_time TIMESTAM
 ALTER TABLE recipient ADD COLUMN IF NOT EXISTS mbti VARCHAR(20);
 ALTER TABLE recipient ADD COLUMN IF NOT EXISTS personality VARCHAR(1000);
 ALTER TABLE recipient ADD COLUMN IF NOT EXISTS recent_purchases VARCHAR(1000);
+ALTER TABLE recipient_tag ADD COLUMN IF NOT EXISTS supplement VARCHAR(500);
 
 -- Packaging: support standalone packaging plans (not tied to orders)
 ALTER TABLE packaging ALTER COLUMN order_id SET NULL;
