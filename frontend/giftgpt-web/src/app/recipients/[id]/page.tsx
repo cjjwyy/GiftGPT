@@ -8,7 +8,6 @@ import { toast } from 'react-hot-toast';
 import Link from 'next/link';
 import TagPicker from '@/components/TagPicker';
 import {
-  SUPPLEMENT_TAGS,
   buildTagSupplements,
   formatSupplementText,
 } from '@/lib/tagOptions';
@@ -23,31 +22,45 @@ export default function RecipientDetailPage() {
   const [name, setName] = useState('');
   const [relation, setRelation] = useState('');
   const [tags, setTags] = useState<string[]>([]);
+  const [supplementModes, setSupplementModes] = useState<Record<string, boolean>>({});
   const [supplementTexts, setSupplementTexts] = useState<Record<string, string>>({});
 
   useEffect(() => {
     recipientApi.get(id).then(d => {
       setDetail(d);
       setName(d.name); setRelation(d.relation || ''); setTags(d.tags || []);
-      const loaded: Record<string, string> = {};
+      const loadedTexts: Record<string, string> = {};
+      const loadedModes: Record<string, boolean> = {};
       const tagSupplements = d.tagSupplements || {};
       for (const [tag, items] of Object.entries(tagSupplements)) {
-        loaded[tag] = formatSupplementText(items as string[]);
+        loadedTexts[tag] = formatSupplementText(items as string[]);
+        loadedModes[tag] = true;
       }
-      setSupplementTexts(loaded);
+      setSupplementTexts(loadedTexts);
+      setSupplementModes(loadedModes);
       setLoading(false);
     }).catch(() => setLoading(false));
   }, [id]);
 
   const handleTagsChange = (nextTags: string[]) => {
     setTags(nextTags);
-    setSupplementTexts(prev => {
+    setSupplementModes(prev => {
       const next = { ...prev };
-      for (const tag of SUPPLEMENT_TAGS) {
-        if (!nextTags.includes(tag)) delete next[tag];
-      }
+      Object.keys(next).forEach(tag => { if (!nextTags.includes(tag)) delete next[tag]; });
       return next;
     });
+    setSupplementTexts(prev => {
+      const next = { ...prev };
+      Object.keys(next).forEach(tag => { if (!nextTags.includes(tag)) delete next[tag]; });
+      return next;
+    });
+  };
+
+  const handleSupplementModeChange = (tag: string, hasSupplement: boolean) => {
+    setSupplementModes(prev => ({ ...prev, [tag]: hasSupplement }));
+    if (!hasSupplement) {
+      setSupplementTexts(prev => ({ ...prev, [tag]: '' }));
+    }
   };
 
   const handleSupplementChange = (tag: string, value: string) => {
@@ -56,7 +69,7 @@ export default function RecipientDetailPage() {
 
   const onSave = async () => {
     const missingSupplements = tags.filter(
-      tag => SUPPLEMENT_TAGS.includes(tag) && !(supplementTexts[tag] || '').trim()
+      tag => supplementModes[tag] && !(supplementTexts[tag] || '').trim()
     );
     if (missingSupplements.length > 0) {
       toast.error(`请填写补充项：${missingSupplements.join('、')}`);
@@ -65,7 +78,7 @@ export default function RecipientDetailPage() {
     try {
       await recipientApi.update(id, {
         name, relation, tags,
-        tagSupplements: buildTagSupplements(tags, supplementTexts),
+        tagSupplements: buildTagSupplements(tags, supplementModes, supplementTexts),
       });
       setEditing(false);
       toast.success('已更新');
@@ -105,8 +118,10 @@ export default function RecipientDetailPage() {
           {editing ? (
             <TagPicker
               selectedTags={tags}
+              supplementModes={supplementModes}
               supplementTexts={supplementTexts}
               onTagsChange={handleTagsChange}
+              onSupplementModeChange={handleSupplementModeChange}
               onSupplementChange={handleSupplementChange}
             />
           ) : (

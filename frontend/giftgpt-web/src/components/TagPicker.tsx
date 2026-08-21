@@ -2,26 +2,26 @@
 
 import {
   TAG_OPTIONS,
-  SUPPLEMENT_TAGS,
   TAG_SUPPLEMENT_EXAMPLES,
 } from '@/lib/tagOptions';
 
 interface TagPickerProps {
   selectedTags: string[];
+  supplementModes: Record<string, boolean>;
   supplementTexts: Record<string, string>;
   onTagsChange: (tags: string[]) => void;
+  onSupplementModeChange: (tag: string, hasSupplement: boolean) => void;
   onSupplementChange: (tag: string, value: string) => void;
 }
 
 export default function TagPicker({
   selectedTags,
+  supplementModes,
   supplementTexts,
   onTagsChange,
+  onSupplementModeChange,
   onSupplementChange,
 }: TagPickerProps) {
-  const supplementOptions = TAG_OPTIONS.filter(t => SUPPLEMENT_TAGS.includes(t));
-  const normalOptions = TAG_OPTIONS.filter(t => !SUPPLEMENT_TAGS.includes(t));
-
   const toggleTag = (tag: string) => {
     const next = selectedTags.includes(tag)
       ? selectedTags.filter(t => t !== tag)
@@ -29,51 +29,63 @@ export default function TagPicker({
     onTagsChange(next);
   };
 
-  const renderTagButton = (tag: string) => (
-    <button
-      key={tag}
-      type="button"
-      className={selectedTags.includes(tag) ? 'tag-selected' : 'tag cursor-pointer hover:bg-primary-100'}
-      onClick={() => toggleTag(tag)}
-    >
-      {tag}
-    </button>
-  );
-
-  const selectedSupplementTags = selectedTags.filter(t => SUPPLEMENT_TAGS.includes(t));
-
   return (
     <div className="space-y-4">
       <div>
-        <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">有补充项</p>
+        <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          选择标签（每个标签需标注是否有补充项）
+        </p>
         <div className="flex flex-wrap gap-2">
-          {supplementOptions.map(renderTagButton)}
+          {TAG_OPTIONS.map(tag => (
+            <button
+              key={tag}
+              type="button"
+              className={selectedTags.includes(tag) ? 'tag-selected' : 'tag cursor-pointer hover:bg-primary-100'}
+              onClick={() => toggleTag(tag)}
+            >
+              {tag}
+            </button>
+          ))}
         </div>
       </div>
 
-      <div>
-        <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">无补充项</p>
-        <div className="flex flex-wrap gap-2">
-          {normalOptions.map(renderTagButton)}
-        </div>
-      </div>
-
-      {selectedSupplementTags.length > 0 && (
+      {selectedTags.length > 0 && (
         <div className="space-y-3 rounded-lg bg-primary-50/50 dark:bg-primary-900/20 p-3">
           <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
-            请填写所选标签的补充项（必填）
+            请逐个标注已选标签是否有补充项
           </p>
-          {selectedSupplementTags.map(tag => (
-            <div key={tag}>
-              <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">{tag}</label>
-              <input
-                className="input-field"
-                value={supplementTexts[tag] || ''}
-                onChange={e => onSupplementChange(tag, e.target.value)}
-                placeholder={`如：${TAG_SUPPLEMENT_EXAMPLES[tag].join('、')}（用顿号或逗号分隔）`}
-              />
-            </div>
-          ))}
+          {selectedTags.map(tag => {
+            const hasSupplement = !!supplementModes[tag];
+            return (
+              <div key={tag} className="space-y-1">
+                <div className="flex items-center gap-3">
+                  <span className="text-sm font-medium text-gray-800 dark:text-gray-200">{tag}</span>
+                  <button
+                    type="button"
+                    className={!hasSupplement ? 'tag-selected' : 'tag cursor-pointer hover:bg-primary-100'}
+                    onClick={() => onSupplementModeChange(tag, false)}
+                  >
+                    无补充项
+                  </button>
+                  <button
+                    type="button"
+                    className={hasSupplement ? 'tag-selected' : 'tag cursor-pointer hover:bg-primary-100'}
+                    onClick={() => onSupplementModeChange(tag, true)}
+                  >
+                    有补充项
+                  </button>
+                </div>
+                {hasSupplement && (
+                  <input
+                    className="input-field"
+                    value={supplementTexts[tag] || ''}
+                    onChange={e => onSupplementChange(tag, e.target.value)}
+                    placeholder={`如：${(TAG_SUPPLEMENT_EXAMPLES[tag] || ['吉他', '贝斯', '古典']).join('、')}（用顿号或逗号分隔）`}
+                  />
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

@@ -40,7 +40,6 @@ import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -64,8 +63,7 @@ public class RecommendationService {
 
     private static final String SYSTEM_PROMPT = "你是一位温暖细腻的礼物推荐AI助手。你总是以JSON格式回复，不添加任何额外的解释或markdown标记。你推荐的礼物贴近生活、实用且有情感价值，语言柔和温暖，善于用收礼人的称谓让每份推荐都更有温度。";
 
-    /** 有补充项的标签：选中后必须填写具体补充项；其余标签为“无补充项” */
-    private static final Set<String> SUPPLEMENT_TAGS = Set.of("音乐", "运动");
+    /** 哪些标签带补充项由画像标注数据决定，后端不预设固定标签集合。 */
 
     // ---------- AI Gift Result DTO ----------
 
@@ -382,7 +380,6 @@ public class RecommendationService {
                 new LambdaQueryWrapper<RecipientTag>().eq(RecipientTag::getRecipientId, recipientId));
         Map<String, List<String>> result = new LinkedHashMap<>();
         for (RecipientTag tag : tags) {
-            if (!SUPPLEMENT_TAGS.contains(tag.getTagName())) continue;
             if (tag.getSupplement() == null || tag.getSupplement().isBlank()) continue;
             List<String> items = Arrays.stream(tag.getSupplement().split("[、,，;；]"))
                     .map(String::trim)

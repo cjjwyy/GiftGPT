@@ -8,13 +8,12 @@ export const TAG_OPTIONS = [
   '与兴趣无关', '与性格无关',
 ];
 
-// 有补充项的标签：选中后必须填写具体补充项；其余标签自动归为“无补充项”。
+// 仅作为填写补充项时的提示示例，不预设哪些标签“有补充项”。
+// 每个标签是否带补充项由用户在画像中选择。
 export const TAG_SUPPLEMENT_EXAMPLES: Record<string, string[]> = {
   '音乐': ['吉他', '贝斯', '古典', 'Taylor Swift'],
   '运动': ['羽毛球', '健身', '跑步'],
 };
-
-export const SUPPLEMENT_TAGS = Object.keys(TAG_SUPPLEMENT_EXAMPLES);
 
 export function parseSupplementText(text: string): string[] {
   return (text || '')
@@ -29,11 +28,12 @@ export function formatSupplementText(items: string[] | undefined): string {
 
 export function buildTagSupplements(
   selectedTags: string[],
+  supplementModes: Record<string, boolean>,
   supplementTexts: Record<string, string>
 ): Record<string, string[]> {
   const result: Record<string, string[]> = {};
-  for (const tag of SUPPLEMENT_TAGS) {
-    if (!selectedTags.includes(tag)) continue;
+  for (const tag of selectedTags) {
+    if (!supplementModes[tag]) continue;
     const items = parseSupplementText(supplementTexts[tag] || '');
     if (items.length > 0) result[tag] = items;
   }

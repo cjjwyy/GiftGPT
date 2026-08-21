@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { recipientApi } from '@/lib/api';
 import { toast } from 'react-hot-toast';
 import TagPicker from '@/components/TagPicker';
-import { SUPPLEMENT_TAGS, buildTagSupplements } from '@/lib/tagOptions';
+import { buildTagSupplements } from '@/lib/tagOptions';
 
 const MBTI_OPTIONS = [
   'INTJ', 'INTP', 'ENTJ', 'ENTP', 'INFJ', 'INFP', 'ENFJ', 'ENFP',
@@ -20,6 +20,7 @@ export default function NewRecipientPage() {
   const [mbti, setMbti] = useState('');
   const [personality, setPersonality] = useState('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [supplementModes, setSupplementModes] = useState<Record<string, boolean>>({});
   const [supplementTexts, setSupplementTexts] = useState<Record<string, string>>({});
   const [recentPurchases, setRecentPurchases] = useState('');
   const [note, setNote] = useState('');
@@ -27,13 +28,23 @@ export default function NewRecipientPage() {
 
   const handleTagsChange = (tags: string[]) => {
     setSelectedTags(tags);
-    setSupplementTexts(prev => {
+    setSupplementModes(prev => {
       const next = { ...prev };
-      for (const tag of SUPPLEMENT_TAGS) {
-        if (!tags.includes(tag)) delete next[tag];
-      }
+      Object.keys(next).forEach(tag => { if (!tags.includes(tag)) delete next[tag]; });
       return next;
     });
+    setSupplementTexts(prev => {
+      const next = { ...prev };
+      Object.keys(next).forEach(tag => { if (!tags.includes(tag)) delete next[tag]; });
+      return next;
+    });
+  };
+
+  const handleSupplementModeChange = (tag: string, hasSupplement: boolean) => {
+    setSupplementModes(prev => ({ ...prev, [tag]: hasSupplement }));
+    if (!hasSupplement) {
+      setSupplementTexts(prev => ({ ...prev, [tag]: '' }));
+    }
   };
 
   const handleSupplementChange = (tag: string, value: string) => {
@@ -44,7 +55,7 @@ export default function NewRecipientPage() {
     e.preventDefault();
     if (!name.trim()) { toast.error('请输入收礼人姓名'); return; }
     const missingSupplements = selectedTags.filter(
-      tag => SUPPLEMENT_TAGS.includes(tag) && !(supplementTexts[tag] || '').trim()
+      tag => supplementModes[tag] && !(supplementTexts[tag] || '').trim()
     );
     if (missingSupplements.length > 0) {
       toast.error(`请填写补充项：${missingSupplements.join('、')}`);
@@ -54,7 +65,7 @@ export default function NewRecipientPage() {
     try {
       await recipientApi.create({
         name, relation, gender, mbti, personality, tags: selectedTags,
-        tagSupplements: buildTagSupplements(selectedTags, supplementTexts),
+        tagSupplements: buildTagSupplements(selectedTags, supplementModes, supplementTexts),
         recentPurchases, note,
       });
       toast.success('画像创建成功');
@@ -113,8 +124,10 @@ export default function NewRecipientPage() {
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">性格/兴趣标签 (可多选)</label>
           <TagPicker
             selectedTags={selectedTags}
+            supplementModes={supplementModes}
             supplementTexts={supplementTexts}
             onTagsChange={handleTagsChange}
+            onSupplementModeChange={handleSupplementModeChange}
             onSupplementChange={handleSupplementChange}
           />
         </div>
