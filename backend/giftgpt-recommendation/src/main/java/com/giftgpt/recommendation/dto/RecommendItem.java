@@ -18,4 +18,6 @@ public class RecommendItem {
     private String reason;
     private List<String> matchTags;
     private String reasoningChain;
+    /** 命中关键词的权重，用于排序（高权重优先） */
+    private double keywordWeight = 1.0;
 }

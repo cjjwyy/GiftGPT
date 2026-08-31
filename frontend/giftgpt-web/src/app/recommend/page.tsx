@@ -21,7 +21,7 @@ interface Step { key: string; label: string; desc: string; icon: any; status: St
 
 const INITIAL_STEPS: Step[] = [
   { key: 'analyze', label: '分析性格', desc: '解读收礼人 MBTI、兴趣与画像', icon: User, status: 'pending' },
-  { key: 'ai', label: 'AI 智能判断礼物', desc: '基于画像与场景生成候选清单', icon: BrainCircuit, status: 'pending' },
+  { key: 'ai', label: '生成搜索关键词', desc: '按收礼人性别/关系/标签生成关键词，权重越高越优先', icon: BrainCircuit, status: 'pending' },
   { key: 'search', label: '拼多多搜索', desc: '在拼多多匹配真实商品', icon: Search, status: 'pending' },
 ];
 

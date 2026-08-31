@@ -57,6 +57,7 @@ public class RecommendationService {
     private final ProductMapper productMapper;
     private final CommerceService commerceService;
     private final KnowledgeGraphService knowledgeGraphService;
+    private final KeywordGraphService keywordGraphService;
     private final DeepseekClient deepseekClient;
 
     private static final ObjectMapper objectMapper = new ObjectMapper();
@@ -102,29 +103,30 @@ public class RecommendationService {
         return snapshot;
     }
 
-    /** Step 2: ask the LLM to judge suitable gifts for the recipient. */
+    /** Step 2: 根据收礼人画像生成按权重排序的搜索关键词（直接用于商品搜索）。 */
     public AiGiftsResponse generateAiGifts(RecommendRequest request) {
         Long userId = StpUtil.getLoginIdAsLong();
         Recipient recipient = loadOwnRecipient(request.getRecipientId(), userId);
         List<RecipientTag> tags = recipientTagMapper.selectList(
                 new LambdaQueryWrapper<RecipientTag>().eq(RecipientTag::getRecipientId, recipient.getId()));
         List<String> tagNames = tags.stream().map(RecipientTag::getTagName).collect(Collectors.toList());
-        Map<String, List<String>> tagSupplements = loadTagSupplements(recipient.getId());
 
-        String occasionLabel = translateOccasion(request.getOccasion());
-        String prompt = buildPrompt(recipient, tagNames, tagSupplements, occasionLabel, request.getBudget(), request.getExtraNote());
+        List<KeywordGraphService.KeywordHit> hits = keywordGraphService.pickKeywords(recipient, tagNames);
+        List<AiGift> gifts = new ArrayList<>();
+        for (KeywordGraphService.KeywordHit hit : hits) {
+            AiGift g = new AiGift();
+            g.setName(hit.getKeyword());
+            g.setPrice(0);
+            g.setReason("按关键词「" + hit.getKeyword() + "」搜索商品");
+            g.setTags(new ArrayList<>());
+            g.setPlatform("拼多多");
+            g.setWeight(hit.getWeight());
+            gifts.add(g);
+        }
 
         AiGiftsResponse resp = new AiGiftsResponse();
-        try {
-            String content = deepseekClient.chat(SYSTEM_PROMPT, prompt, 4096);
-            AiGiftResult aiResult = parseAiGiftsJson(content);
-            resp.setGifts(filterAiGiftsBySupplements(aiResult.getGifts(), tagSupplements));
-            resp.setSummary(aiResult.getSummary());
-        } catch (Exception e) {
-            log.error("Deepseek API call failed, using tag-based fallback", e);
-            resp.setGifts(filterAiGiftsBySupplements(fallbackAiGifts(request, tagNames), tagSupplements));
-            resp.setSummary("AI 服务暂时不可用，以下为基于标签的推荐结果");
-        }
+        resp.setGifts(gifts);
+        resp.setSummary("基于收礼人画像生成 " + hits.size() + " 个搜索关键词，权重越高越优先搜索");
         return resp;
     }
 
@@ -138,7 +140,7 @@ public class RecommendationService {
         List<RecommendItem> items = new ArrayList<>();
         List<AiGift> gifts = request.getGifts() != null ? request.getGifts() : new ArrayList<>();
 
-        // Search platforms for each gift in parallel, then build items
+        // 关键词搜索：每个关键词独立去拼多多搜索，按关键词权重排序
         List<CompletableFuture<RecommendItem>> futures = new ArrayList<>();
         for (AiGift gi : gifts) {
             futures.add(CompletableFuture.supplyAsync(() -> buildItemFromAiGift(gi, request.getBudget())));
@@ -152,37 +154,10 @@ public class RecommendationService {
             }
         }
 
-        // KG enhancement: independent path, merge and deduplicate
-        // Main chain stays as-is (DeepSeek 3-step), KG only adds reason-backed items
-        if (knowledgeGraphService.isEnabled()) {
-            List<RecommendItem> kgItems = knowledgeGraphService.queryRecommendations(
-                    request.getRecipientId(), request.getOccasion(), request.getBudget());
-            for (RecommendItem kgItem : kgItems) {
-                // Fill platformUrl from local DB product
-                if (kgItem.getProductId() != null && kgItem.getProductId() > 0) {
-                    Product prod = productMapper.selectById(kgItem.getProductId());
-                    if (prod != null) {
-                        kgItem.setPlatformUrl(prod.getPlatformUrl() != null ? prod.getPlatformUrl() : "");
-                        if (prod.getImageUrl() != null && !prod.getImageUrl().isEmpty()) {
-                            kgItem.setImageUrl(prod.getImageUrl());
-                        }
-                    }
-                }
-                // Avoid duplicate: skip if an AI item has the same productId
-                boolean dup = items.stream().anyMatch(ai ->
-                        ai.getProductId() != null && ai.getProductId().equals(kgItem.getProductId()));
-                if (!dup) items.add(kgItem);
-            }
-            log.info("KG enhancement added {} items (total now {})", kgItems.size(), items.size());
-        }
-
-        // 最后一步：用补充项过滤掉明显不符合的商品（如音乐-吉他不能留下羽毛球拍）
-        int beforeSupplementFilter = items.size();
-        items = filterItemsBySupplements(items, tagSupplements);
-        log.info("Supplement filter: {} -> {} items", beforeSupplementFilter, items.size());
-
-        // Sort: KG items (with reasoningChain) last, or by score descending
+        // 排序：关键词权重高者优先，其次按匹配分数
         items.sort((a, b) -> {
+            int cw = Double.compare(b.getKeywordWeight(), a.getKeywordWeight());
+            if (cw != 0) return cw;
             double sa = a.getScore() != null ? a.getScore() : 0;
             double sb = b.getScore() != null ? b.getScore() : 0;
             return Double.compare(sb, sa);
@@ -255,6 +230,7 @@ public class RecommendationService {
         }
         item.setReason(reason);
         item.setMatchTags(gi.getTags());
+        item.setKeywordWeight(gi.getWeight());
 
         Product matched = searchPlatformForGift(gi);
         if (matched == null) {
