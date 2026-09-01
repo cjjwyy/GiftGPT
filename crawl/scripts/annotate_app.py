@@ -362,8 +362,8 @@ def normalize_class(cls):
 
 
 def split_keywords(text):
-    """把标注者输入的关键词按顿号/逗号/分号拆成列表"""
-    return [x.strip() for x in re.split(r"[,，、;；]+", text or "") if x.strip()]
+    """把标注者输入的关键词按空格/顿号/逗号/分号拆成列表"""
+    return [x.strip() for x in re.split(r"[\s,，、;；]+", text or "") if x.strip()]
 
 
 # ---------------- 页面 ----------------
@@ -413,13 +413,13 @@ def render_tag_picker(label, selected, prefix):
 
 
 def render_keyword_input(stored_keywords, prefix):
-    """一个类的关键词输入框（多个用顿号/逗号分隔）"""
-    value = "、".join(stored_keywords)
+    """一个类的关键词输入框（多个用空格分隔，将用于搜索）"""
+    value = " ".join(stored_keywords)
     entered = st.text_input(
-        "关键词（多个用顿号/逗号分隔，将用于搜索）",
+        "关键词（多个用空格分隔，将用于搜索）",
         value=value,
         key=f"{prefix}_keywords",
-        placeholder="如：吉他 礼物、贝斯 礼物、送女朋友礼物",
+        placeholder="如：吉他 礼物 贝斯 礼物 送女朋友礼物",
     )
     return split_keywords(entered)
 
@@ -890,9 +890,14 @@ for p in page_posts:
                 class_id = cls.get("class_id") or new_class_id()
                 cls["class_id"] = class_id
                 with st.container(border=True):
-                    st.markdown(f"**类 {display_i}**")
-                    top_col = st.columns([1, 1, 1])
-                    with top_col[0]:
+                    head_l, head_r = st.columns([6, 1])
+                    with head_l:
+                        st.markdown(f"**类 {display_i}**")
+                    with head_r:
+                        if len(classes) > 1 and st.button("🗑 删类", key=f"delc_{pid}_{class_id}"):
+                            del_ids.append(class_id)
+                    gr1, gr2 = st.columns([1, 1])
+                    with gr1:
                         gender = st.selectbox(
                             "性别（唯一）",
                             gender_options,
@@ -900,7 +905,7 @@ for p in page_posts:
                             key=f"gender_{pid}_{class_id}",
                         )
                         render_add_field("gender", f"gender_{pid}_{class_id}")
-                    with top_col[1]:
+                    with gr2:
                         relation = st.selectbox(
                             "关系（唯一）",
                             relation_options,
@@ -908,9 +913,6 @@ for p in page_posts:
                             key=f"relation_{pid}_{class_id}",
                         )
                         render_add_field("relation", f"relation_{pid}_{class_id}")
-                    with top_col[2]:
-                        if len(classes) > 1 and st.button("🗑 删类", key=f"delc_{pid}_{class_id}"):
-                            del_ids.append(class_id)
                     t1, t2 = st.columns([1, 1])
                     with t1:
                         itags = render_tag_picker("兴趣标签", cls.get("interest_tags", []),
