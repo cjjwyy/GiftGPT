@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { calendarApi, notificationApi, recipientApi } from '@/lib/api';
 import Link from 'next/link';
+import CalendarMonth from '@/components/CalendarMonth';
 import { CalendarEvent, PageData } from '@/types';
 import { Loading } from '@/components/Loading';
 import { CalendarDays, Plus, X, Bell, Trash2, Pencil } from 'lucide-react';
@@ -119,6 +120,7 @@ export default function CalendarPage() {
         </div>
       </div>
 
+      <CalendarMonth events={events} onSelect={startEdit} />
       <section id="notifications" className="card mb-8 scroll-mt-24">
         <div className="flex justify-between items-center mb-3">
           <h2 className="font-semibold text-gray-800 dark:text-gray-200 flex items-center gap-2"><Bell className="w-4 h-4 text-primary-500" /> 提醒消息</h2>

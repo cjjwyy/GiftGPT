@@ -8,6 +8,7 @@ import { Heart, MessageSquare, Send } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import Link from 'next/link';
 import { relativeTime } from '@/lib/utils';
+import ReportStory from '@/components/ReportStory';
 
 interface Reply {
   id: number;
@@ -24,6 +25,8 @@ function avatarText(s: StoryItem) {
 }
 
 export default function StoriesPage() {
+  const [canModerate, setCanModerate] = useState(false);
+  useEffect(() => { storyApi.moderationCapabilities().then(r => setCanModerate(r.canModerate)).catch(() => {}); }, []);
   const [stories, setStories] = useState<StoryItem[]>([]);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
@@ -118,6 +121,7 @@ export default function StoriesPage() {
         <Link href="/stories/new" className="btn-primary text-sm">分享我的故事</Link>
       </div>
 
+      {canModerate && <Link href="/stories/moderation" className="btn-outline inline-block mb-4">处理社区举报</Link>}
       <div className="space-y-5">
         {stories.map(s => {
           const name = s.isAnonymous ? '匿名用户' : (s.nickname || `用户${s.userId}`);
@@ -141,6 +145,7 @@ export default function StoriesPage() {
                 catch { toast.error('删除失败'); }
               }}>删除我的故事</button>}
               <p className="text-gray-600 dark:text-gray-300 leading-relaxed whitespace-pre-wrap">{s.content}</p>
+              <ReportStory storyId={s.id} />
 
               <div className="flex items-center gap-5 mt-5 pt-4 border-t border-gray-100 dark:border-gray-800">
                 <button

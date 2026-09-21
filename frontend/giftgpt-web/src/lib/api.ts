@@ -192,6 +192,11 @@ export const greetingApi = {
 
 // Stories
 export const storyApi = {
+  report: (id: number, reason: string, detail: string) => request<{ id: number; status: string }>(`/stories/${id}/reports`, { method: 'POST', body: JSON.stringify({ reason, detail }) }),
+  moderationCapabilities: () => request<{ canModerate: boolean }>('/stories/moderation/capabilities'),
+  reports: (page = 1, status = 'pending') => request<any>(`/stories/moderation/reports?page=${page}&status=${encodeURIComponent(status)}`),
+  reportStory: (id: number) => request<any>(`/stories/moderation/reports/${id}/story`),
+  review: (id: number, action: 'hide' | 'dismiss', note: string) => request<void>(`/stories/moderation/reports/${id}/review`, { method: 'POST', body: JSON.stringify({ action, note }) }),
   delete: (id: number) => request<void>(`/stories/${id}`, { method: 'DELETE' }),
   list: (page = 1, size = 10) =>
     request<any>(`/stories?page=${page}&size=${size}`),

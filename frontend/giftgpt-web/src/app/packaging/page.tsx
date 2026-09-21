@@ -9,6 +9,7 @@ import { Sparkles, Gift, History, ArrowLeft } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import Link from 'next/link';
 import Image from 'next/image';
+import PackagingPreview from '@/components/PackagingPreview';
 
 const GIFT_BOXES = [
   { id: 'classic', name: '经典缎面礼盒', desc: '硬质磁吸礼盒，缎面蝴蝶结，丝绒内衬', svg: '/packaging/box-classic.svg' },
@@ -203,6 +204,7 @@ function PackagingContent() {
   return (
     <div className="max-w-5xl mx-auto px-4 py-10">
       <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">礼物包装</h1>
+      {(hasProduct || viewingPlan) && <PackagingPreview theme={selectedBox} ribbonColor={ribbonColor} ribbonStyle={ribbonStyle} ribbonText={ribbonText} cardText={cardText} customs={customs} productName={dispProductName} />}
 
       {viewingPlan && (
         <button onClick={backToBrowse} className="btn-outline text-sm py-2 px-4 mb-4 flex items-center gap-2">

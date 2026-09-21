@@ -45,6 +45,8 @@ sa-token:
   jwt-secret-key: ${JWT_SECRET:giftgpt-dev-only-secret-change-me}
 
 giftgpt:
+  community:
+    moderator-ids: ${COMMUNITY_MODERATOR_IDS:}
   public-web-url: ${PUBLIC_WEB_URL:http://localhost:3000}
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000}

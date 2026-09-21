@@ -10,6 +10,22 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /** Isolated in-memory H2: verifies mapper locking SQL and concurrent count writes. */
 class ContentLockTest {
+    @Test void reportSchemaEnforcesOneReportPerUserAndPost() throws Exception {
+        String schema;
+        try(java.io.InputStream stream=new org.springframework.core.io.ClassPathResource("schema.sql").getInputStream()) {
+            schema=new String(stream.readAllBytes(),java.nio.charset.StandardCharsets.UTF_8);
+        }
+        java.util.regex.Matcher ddl=java.util.regex.Pattern.compile("CREATE TABLE IF NOT EXISTS story_report \\(.*?;",java.util.regex.Pattern.DOTALL).matcher(schema);
+        assertTrue(ddl.find());
+        try(Connection c=DriverManager.getConnection("jdbc:h2:mem:report-schema;MODE=MySQL");Statement s=c.createStatement()) {
+            s.execute(ddl.group());
+            String insert="INSERT INTO story_report(story_id,reporter_id,reason,detail) VALUES(1,2,'spam','test')";
+            s.executeUpdate(insert);
+            SQLException duplicate=assertThrows(SQLException.class,()->s.executeUpdate(insert));
+            assertEquals("23505",duplicate.getSQLState());
+            try(ResultSet rs=s.executeQuery("SELECT status FROM story_report")) {rs.next();assertEquals("pending",rs.getString(1));}
+        }
+    }
     @Test void databaseLocksSerializeCountersAndOwnerLockIsValid() throws Exception {
         String url="jdbc:h2:mem:content-lock;MODE=MySQL;NON_KEYWORDS=USER;LOCK_TIMEOUT=3000";
         String lock=StoryMapper.class.getMethod("lockById",Long.class).getAnnotation(Select.class).value()[0].replace("#{id}","1");

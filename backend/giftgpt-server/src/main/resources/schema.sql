@@ -346,3 +346,18 @@ ALTER TABLE packaging ADD COLUMN IF NOT EXISTS customizations_json VARCHAR(2000)
 ALTER TABLE packaging ADD COLUMN IF NOT EXISTS price_details_json VARCHAR(2000);
 ALTER TABLE packaging ADD COLUMN IF NOT EXISTS version INT DEFAULT 0;
 CREATE UNIQUE INDEX IF NOT EXISTS ux_packaging_request ON packaging(user_id, request_key);
+
+CREATE TABLE IF NOT EXISTS story_report (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    story_id BIGINT NOT NULL,
+    reporter_id BIGINT NOT NULL,
+    reason VARCHAR(30) NOT NULL,
+    detail VARCHAR(500) NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'pending',
+    moderator_id BIGINT,
+    decision_note VARCHAR(500),
+    create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(story_id, reporter_id)
+);
+CREATE INDEX IF NOT EXISTS idx_story_report_queue ON story_report(status, id);
