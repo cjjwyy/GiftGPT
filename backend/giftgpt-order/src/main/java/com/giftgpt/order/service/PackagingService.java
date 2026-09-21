@@ -8,11 +8,15 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.giftgpt.common.ai.DeepseekClient;
 import com.giftgpt.common.exception.BusinessException;
 import com.giftgpt.common.result.ResultCode;
+import com.giftgpt.goods.entity.Product;
+import com.giftgpt.goods.mapper.ProductMapper;
 import com.giftgpt.order.dto.packaging.AiPackagingRequest;
 import com.giftgpt.order.dto.packaging.AiPackagingResult;
 import com.giftgpt.order.dto.packaging.PackagingTheme;
 import com.giftgpt.order.dto.packaging.SavePackagingRequest;
+import com.giftgpt.order.entity.GreetingCard;
 import com.giftgpt.order.entity.Packaging;
+import com.giftgpt.order.mapper.GreetingCardMapper;
 import com.giftgpt.order.mapper.PackagingMapper;
 import com.giftgpt.user.entity.GiftRecord;
 import com.giftgpt.user.entity.Recipient;
@@ -21,6 +25,7 @@ import com.giftgpt.user.mapper.RecipientMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.*;
@@ -33,7 +38,8 @@ public class PackagingService {
     private final PackagingMapper packagingMapper;
     private final GiftRecordMapper giftRecordMapper;
     private final RecipientMapper recipientMapper;
-
+    private final ProductMapper productMapper;
+    private final GreetingCardMapper greetingCardMapper;
     private final DeepseekClient deepseekClient;
 
     public List<PackagingTheme> getThemes() {
@@ -65,15 +71,23 @@ public class PackagingService {
                 buildAiPrompt(req), 1024);
             String json = DeepseekClient.stripMarkdown(content);
             ObjectMapper m = new ObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-            return m.readValue(json, AiPackagingResult.class);
+            AiPackagingResult result = m.readValue(json, AiPackagingResult.class);
+            if (result == null || getThemes().stream().noneMatch(t -> t.getId().equals(result.getPackagingType()))
+                    || (result.getWrappingStyle() != null && !List.of("cross", "side", "double_bow", "furoshiki").contains(result.getWrappingStyle()))
+                    || (result.getScent() != null && !result.getScent().isBlank() && !List.of("玫瑰", "白茶", "雪松").contains(result.getScent()))
+                    || (result.getRibbonText() != null && result.getRibbonText().length() > 10)) {
+                return fallbackPackaging(req);
+            }
+            result.setAiGenerated(true);
+            return result;
         } catch (Exception e) {
-            log.error("AI packaging recommend failed, using fallback", e);
+            log.warn("AI packaging recommend failed, using fallback: {}", e.getMessage());
             return fallbackPackaging(req);
         }
     }
 
     private AiPackagingResult fallbackPackaging(AiPackagingRequest req) {
-        // ponytail: 模板兜底，无 key/API 失败时演示不中断
+        // 模板兜底，无 key 或 API 失败时演示不中断。
         AiPackagingResult r = new AiPackagingResult();
         r.setPackagingType("classic");
         r.setRibbonColor("金色");
@@ -89,9 +103,8 @@ public class PackagingService {
         if (req.getProductCategory() != null) sb.append("- 分类：").append(req.getProductCategory()).append("\n");
         if (req.getProductPrice() != null) sb.append("- 价格：¥").append(req.getProductPrice()).append("\n");
         sb.append("\n【可选礼盒】\n");
-        sb.append("1.classic 经典缎面礼盒¥29.9 2.korean 韩式极简¥19.9 3.kraft 牛皮纸¥9.9\n");
-        sb.append("4.luxury 轻奢烫金¥49.9 5.acrylic 透明亚克力¥24.9\n\n");
-        sb.append("【可选定制】礼带烫金字¥9.9/手写贺卡¥5.0/干花装饰¥12.0/香薰加香¥6.0/定制腰封¥7.0\n");
+        getThemes().forEach(t -> sb.append(t.getId()).append(" ").append(t.getName()).append(" ¥").append(t.getPrice()).append("\n"));
+        sb.append("【可选定制及价格】").append(addonPrices()).append("\n");
         sb.append("【丝带绑法】cross经典交叉/side单侧斜绑/double_bow双层蝴蝶结/furoshiki日式风吕敷\n\n");
         sb.append("返回JSON（不要markdown）：\n");
         sb.append("{\"packagingType\":\"classic\",\"ribbonText\":\"祝福\",\"ribbonColor\":\"金色\",");
@@ -99,23 +112,75 @@ public class PackagingService {
         return sb.toString();
     }
 
+    @Transactional
     public Packaging savePackaging(SavePackagingRequest req) {
         Long userId = StpUtil.getLoginIdAsLong();
-        Packaging p = new Packaging();
-        p.setUserId(userId);
-        p.setTheme(req.getPackagingType());
-        p.setCustomText(req.getCustomText());
-        p.setPrice(req.getPrice());
-        p.setProductName(req.getProductName());
-        p.setProductPrice(req.getProductPrice());
-        p.setProductImageUrl(req.getProductImageUrl());
-        p.setRibbonText(req.getRibbonText());
-        p.setRibbonColor(req.getRibbonColor());
-        p.setScent(req.getScent());
-        p.setPhotoUrl(req.getPhotoUrl());
-        p.setWrappingStyle(req.getWrappingStyle());
+        // Serialize writes per owner in the database, including across app instances.
+        packagingMapper.lockOwner(userId);
+        Packaging existing = null;
+        if (req.getPlanId() != null) {
+            existing = packagingMapper.selectById(req.getPlanId());
+            if (existing == null) throw new BusinessException(ResultCode.NOT_FOUND);
+            if (!userId.equals(existing.getUserId())) throw new BusinessException(ResultCode.FORBIDDEN);
+            if (!Objects.equals(req.getVersion(), existing.getVersion())) {
+                throw new BusinessException(ResultCode.CONFLICT.getCode(), "方案已更新，请刷新后重试");
+            }
+        } else if (req.getRequestKey() != null && !req.getRequestKey().isBlank()) {
+            Packaging replay = packagingMapper.selectOne(new LambdaQueryWrapper<Packaging>()
+                    .eq(Packaging::getUserId, userId).eq(Packaging::getRequestKey, req.getRequestKey()));
+            if (replay != null) return replay;
+        }
+        Product product = loadProduct(req);
 
-        if (req.getRecipientId() != null) {
+        Packaging packaging = new Packaging();
+        if (existing != null) org.springframework.beans.BeanUtils.copyProperties(existing, packaging);
+        packaging.setRequestKey(existing == null ? req.getRequestKey() : existing.getRequestKey());
+        packaging.setVersion(existing == null || existing.getVersion() == null ? 1 : existing.getVersion() + 1);
+        packaging.setCustomizationsJson(cn.hutool.json.JSONUtil.toJsonStr(
+                req.getCustomizations() == null ? List.of() : new LinkedHashSet<>(req.getCustomizations())));
+        packaging.setUserId(userId);
+        packaging.setTheme(req.getPackagingType());
+        packaging.setCustomText(req.getCustomText());
+        packaging.setPrice(calculatePrice(req.getPackagingType(), req.getCustomizations()));
+        Map<String, BigDecimal> details = new LinkedHashMap<>();
+        details.put(req.getPackagingType(), calculatePrice(req.getPackagingType(), List.of()));
+        if (req.getCustomizations() != null) for (String option : req.getCustomizations()) details.put(option, addonPrices().get(option));
+        packaging.setPriceDetailsJson(cn.hutool.json.JSONUtil.toJsonStr(details));
+        packaging.setProductId(product == null ? null : product.getId());
+        packaging.setProductName(product == null ? req.getProductName().trim() : product.getName());
+        packaging.setProductPrice(product == null ? req.getProductPrice() : product.getPrice());
+        packaging.setProductImageUrl(product == null ? req.getProductImageUrl() : product.getImageUrl());
+        packaging.setRibbonText(req.getRibbonText());
+        packaging.setRibbonColor(req.getRibbonColor());
+        packaging.setScent(req.getScent());
+        packaging.setPhotoUrl(req.getPhotoUrl());
+        packaging.setWrappingStyle(req.getWrappingStyle());
+
+        if (existing != null && existing.getGiftRecordId() != null) {
+            GiftRecord linked = giftRecordMapper.selectById(existing.getGiftRecordId());
+            if (linked == null || !userId.equals(linked.getUserId())) throw new BusinessException(ResultCode.FORBIDDEN);
+            if (!OrderService.STATUS_PACKAGED.equals(linked.getStatus())) {
+                throw new BusinessException(ResultCode.CONFLICT.getCode(), "礼物已进入后续流程，不能修改包装");
+            }
+            if (!Objects.equals(linked.getRecipientId(), req.getRecipientId())) {
+                throw new BusinessException(ResultCode.CONFLICT.getCode(), "已有送礼记录不能更换收礼人，请新建方案");
+            }
+            linked.setProductId(packaging.getProductId());
+            linked.setBudget(packaging.getProductPrice());
+            if (req.getOccasion() != null) linked.setOccasion(req.getOccasion());
+            if (req.getCustomText() != null && !req.getCustomText().isBlank()) {
+                GreetingCard greeting = new GreetingCard();
+                greeting.setContent(req.getCustomText().trim()); greeting.setStyleTemplate("classic");
+                if (linked.getGreetingCardId() == null) greetingCardMapper.insert(greeting);
+                else { greeting.setId(linked.getGreetingCardId()); greetingCardMapper.updateById(greeting); }
+                linked.setGreetingCardId(greeting.getId());
+            } else {
+                giftRecordMapper.update(null, new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<GiftRecord>()
+                        .eq(GiftRecord::getId, linked.getId()).set(GiftRecord::getGreetingCardId, null));
+                linked.setGreetingCardId(null);
+            }
+            giftRecordMapper.updateById(linked);
+        } else if (req.getRecipientId() != null) {
             Recipient recipient = recipientMapper.selectById(req.getRecipientId());
             if (recipient == null) {
                 throw new BusinessException(ResultCode.NOT_FOUND);
@@ -123,26 +188,79 @@ public class PackagingService {
             if (!recipient.getUserId().equals(userId)) {
                 throw new BusinessException(ResultCode.FORBIDDEN);
             }
-            GiftRecord gr = new GiftRecord();
-            gr.setUserId(userId);
-            gr.setRecipientId(req.getRecipientId());
-            gr.setOccasion(req.getOccasion());
-            gr.setBudget(req.getProductPrice());
-            gr.setStatus("packaged");
-            giftRecordMapper.insert(gr);
-            p.setGiftRecordId(gr.getId());
+
+            GiftRecord giftRecord = new GiftRecord();
+            giftRecord.setUserId(userId);
+            giftRecord.setRecipientId(req.getRecipientId());
+            giftRecord.setOccasion(req.getOccasion() == null || req.getOccasion().isBlank()
+                    ? "other" : req.getOccasion());
+            giftRecord.setBudget(packaging.getProductPrice());
+            giftRecord.setProductId(packaging.getProductId());
+            giftRecord.setStatus(OrderService.STATUS_PACKAGED);
+
+            if (req.getCustomText() != null && !req.getCustomText().isBlank()) {
+                GreetingCard greeting = new GreetingCard();
+                greeting.setContent(req.getCustomText().trim());
+                greeting.setStyleTemplate("classic");
+                greetingCardMapper.insert(greeting);
+                giftRecord.setGreetingCardId(greeting.getId());
+            }
+
+            giftRecordMapper.insert(giftRecord);
+            packaging.setGiftRecordId(giftRecord.getId());
         }
 
-        packagingMapper.insert(p);
-        return p;
+        if (existing == null) packagingMapper.insert(packaging);
+        else packagingMapper.updateById(packaging);
+        return packaging;
+    }
+
+    private Product loadProduct(SavePackagingRequest req) {
+        if (req.getProductId() != null && req.getProductId() > 0) {
+            Product product = productMapper.selectById(req.getProductId());
+            if (product == null || !Integer.valueOf(1).equals(product.getStatus())) {
+                throw new BusinessException(ResultCode.PRODUCT_NOT_FOUND);
+            }
+            return product;
+        }
+        if (req.getProductName() == null || req.getProductName().isBlank()
+                || req.getProductPrice() == null || req.getProductPrice().signum() <= 0) {
+            throw new BusinessException(ResultCode.BAD_REQUEST.getCode(), "商品信息不完整");
+        }
+        return null;
+    }
+
+    private BigDecimal calculatePrice(String packagingType, List<String> customizations) {
+        Map<String, BigDecimal> themePrices = getThemes().stream().collect(java.util.stream.Collectors.toMap(PackagingTheme::getId, PackagingTheme::getPrice));
+        Map<String, BigDecimal> customizationPrices = addonPrices();
+        BigDecimal total = themePrices.get(packagingType);
+        if (total == null) {
+            throw new BusinessException(ResultCode.BAD_REQUEST.getCode(), "包装主题不合法");
+        }
+        if (customizations != null) {
+            for (String customization : new LinkedHashSet<>(customizations)) {
+                BigDecimal addon = customizationPrices.get(customization);
+                if (addon == null) {
+                    throw new BusinessException(ResultCode.BAD_REQUEST.getCode(), "包装定制项不合法");
+                }
+                total = total.add(addon);
+            }
+        }
+        return total;
     }
 
     public Page<Packaging> listPackaging(int page, int size) {
         Long userId = StpUtil.getLoginIdAsLong();
-        Page<Packaging> p = new Page<>(page, size);
+        Page<Packaging> p = new Page<>(Math.max(1, page), Math.max(1, Math.min(size, 100)));
         return packagingMapper.selectPage(p,
                 new LambdaQueryWrapper<Packaging>()
                         .eq(Packaging::getUserId, userId)
                         .orderByDesc(Packaging::getCreateTime));
+    }
+
+    public Map<String, BigDecimal> addonPrices() {
+        return Map.of("ribbon_text", new BigDecimal("9.90"), "greeting_card", new BigDecimal("5.00"),
+                "dried_flower", new BigDecimal("12.00"), "polaroid", new BigDecimal("12.00"),
+                "scent", new BigDecimal("6.00"), "band_wrap", new BigDecimal("7.00"));
     }
 }

@@ -10,6 +10,11 @@ import java.util.List;
 
 @Mapper
 public interface StoryReplyMapper extends BaseMapper<StoryReply> {
+    @Select("SELECT r.id, r.story_id, r.user_id, r.content, r.create_time, r.update_time, u.nickname " +
+            "FROM story_reply r LEFT JOIN user u ON r.user_id = u.id " +
+            "WHERE r.story_id = #{storyId} ORDER BY r.create_time ASC, r.id ASC")
+    com.baomidou.mybatisplus.extension.plugins.pagination.Page<StoryReply> selectReplyPage(
+            com.baomidou.mybatisplus.extension.plugins.pagination.Page<StoryReply> page, @Param("storyId") Long storyId);
 
     @Select("SELECT r.id, r.story_id, r.user_id, r.content, r.create_time, r.update_time, u.nickname " +
             "FROM story_reply r LEFT JOIN user u ON r.user_id = u.id " +

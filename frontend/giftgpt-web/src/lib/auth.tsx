@@ -53,10 +53,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = () => {
-    setToken(null);
-    setUser(null);
-    router.push('/');
-    authApi.logout().catch(() => {});
+    void authApi.logout().catch(() => undefined).finally(() => {
+      setToken(null);
+      setUser(null);
+      router.push('/');
+    });
   };
 
   return (

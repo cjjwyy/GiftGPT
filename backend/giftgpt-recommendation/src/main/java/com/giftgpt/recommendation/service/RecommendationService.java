@@ -16,10 +16,13 @@ import com.giftgpt.recommendation.dto.AiGiftsResponse;
 import com.giftgpt.recommendation.dto.MatchRequest;
 import com.giftgpt.recommendation.dto.PersonalitySnapshot;
 import com.giftgpt.recommendation.dto.RecommendFeedbackRequest;
+import com.giftgpt.recommendation.dto.RecommendEventRequest;
 import com.giftgpt.recommendation.dto.RecommendItem;
 import com.giftgpt.recommendation.dto.RecommendRequest;
 import com.giftgpt.recommendation.dto.RecommendResponse;
 import com.giftgpt.recommendation.entity.RecommendationHistory;
+import com.giftgpt.recommendation.entity.RecommendEvent;
+import com.giftgpt.recommendation.mapper.RecommendEventMapper;
 import com.giftgpt.recommendation.mapper.RecommendationHistoryMapper;
 import com.giftgpt.user.entity.Recipient;
 import com.giftgpt.user.entity.RecipientTag;
@@ -28,8 +31,10 @@ import com.giftgpt.user.mapper.RecipientTagMapper;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import javax.annotation.PreDestroy;
 import java.io.*;
 import java.math.BigDecimal;
 import java.net.URLEncoder;
@@ -37,11 +42,17 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
@@ -60,15 +71,31 @@ public class RecommendationService {
     private final KeywordGraphService keywordGraphService;
     private final DeepseekClient deepseekClient;
 
+    @Autowired(required = false)
+    private RecommendEventMapper recommendEventMapper;
+
+    private static final AtomicInteger SEARCH_THREAD_ID = new AtomicInteger();
+    private final ExecutorService productSearchExecutor = Executors.newFixedThreadPool(6, runnable -> {
+        Thread thread = new Thread(runnable, "gift-search-" + SEARCH_THREAD_ID.incrementAndGet());
+        thread.setDaemon(true);
+        return thread;
+    });
+
     private static final ObjectMapper objectMapper = new ObjectMapper();
 
     private static final String SYSTEM_PROMPT = "你是一位温暖细腻的礼物推荐AI助手。你总是以JSON格式回复，不添加任何额外的解释或markdown标记。你推荐的礼物贴近生活、实用且有情感价值，语言柔和温暖，善于用收礼人的称谓让每份推荐都更有温度。";
+
+    @PreDestroy
+    public void shutdownSearchExecutor() {
+        productSearchExecutor.shutdownNow();
+    }
 
     /** 哪些标签带补充项由画像标注数据决定，后端不预设固定标签集合。 */
 
     // ---------- AI Gift Result DTO ----------
 
     @Data
+    @com.fasterxml.jackson.annotation.JsonIgnoreProperties(ignoreUnknown = true)
     static class AiGiftResult {
         private List<AiGift> gifts;
         private String summary;
@@ -103,30 +130,66 @@ public class RecommendationService {
         return snapshot;
     }
 
-    /** Step 2: 根据收礼人画像生成按权重排序的搜索关键词（直接用于商品搜索）。 */
+    /** Step 2: 根据收礼人画像生成按权重排序的搜索关键词（LLM 优先，失败回退关键词图谱）。 */
     public AiGiftsResponse generateAiGifts(RecommendRequest request) {
         Long userId = StpUtil.getLoginIdAsLong();
         Recipient recipient = loadOwnRecipient(request.getRecipientId(), userId);
         List<RecipientTag> tags = recipientTagMapper.selectList(
                 new LambdaQueryWrapper<RecipientTag>().eq(RecipientTag::getRecipientId, recipient.getId()));
         List<String> tagNames = tags.stream().map(RecipientTag::getTagName).collect(Collectors.toList());
+        Map<String, List<String>> tagSupplements = loadTagSupplements(recipient.getId());
 
-        List<KeywordGraphService.KeywordHit> hits = keywordGraphService.pickKeywords(recipient, tagNames);
+        AiGiftsResponse resp = new AiGiftsResponse();
+        List<KeywordGraphService.KeywordHit> graphHits = keywordGraphService.pickKeywords(
+                recipient, tagNames, request.getOccasion());
+        try {
+            // KG 上下文注入：标签 → 品类，约束 LLM 联想范围
+            Map<String, List<String>> tagToCat = knowledgeGraphService.getTagCategoryNames(tagNames);
+            String prompt = buildPrompt(recipient, tagNames, tagSupplements,
+                    request.getOccasion(), request.getBudget(), request.getExtraNote(), tagToCat);
+            prompt += keywordGraphService.promptContext(graphHits);
+            String content = deepseekClient.chat(SYSTEM_PROMPT, prompt, 4096);
+            AiGiftResult aiResult = parseAiGiftsJson(content);
+            List<AiGift> normalized = normalizeAiGifts(aiResult.getGifts(), request.getBudget());
+            normalized = filterAiGiftsBySupplements(normalized, tagSupplements);
+            for (AiGift gift : normalized) {
+                KeywordGraphService.KeywordHit hit = keywordGraphService.match(gift.getName(), graphHits);
+                gift.setWeight(hit == null ? 0 : hit.getWeight());
+                if (hit != null && !hit.explanation().isBlank()) gift.setReason(abbreviate(hit.explanation(), 120));
+            }
+            normalized.sort(Comparator.comparingDouble(AiGift::getWeight).reversed());
+            if (!normalized.isEmpty()) {
+                resp.setGifts(normalized);
+                resp.setSummary(safeSummary(aiResult.getSummary(), "已结合画像、预算与知识图谱生成候选礼物"));
+                resp.setAiGenerated(true);
+                resp.setFallbackUsed(false);
+                return resp;
+            }
+        } catch (Exception e) {
+            log.warn("Deepseek recommendation unavailable, fallback to keyword graph: {}", e.getMessage());
+        }
+        // 兜底：关键词图谱（LLM 未配置/超时/解析失败时），场景也参与关键词推导
+        List<KeywordGraphService.KeywordHit> hits = graphHits;
         List<AiGift> gifts = new ArrayList<>();
-        for (KeywordGraphService.KeywordHit hit : hits) {
+        for (KeywordGraphService.KeywordHit hit : hits.stream().limit(8).collect(Collectors.toList())) {
             AiGift g = new AiGift();
             g.setName(hit.getKeyword());
             g.setPrice(0);
-            g.setReason("按关键词「" + hit.getKeyword() + "」搜索商品");
+            g.setReason(abbreviate(hit.explanation().isBlank() ? "按关键词「" + hit.getKeyword() + "」搜索商品" : hit.explanation(), 120));
             g.setTags(new ArrayList<>());
             g.setPlatform("拼多多");
             g.setWeight(hit.getWeight());
             gifts.add(g);
         }
-
-        AiGiftsResponse resp = new AiGiftsResponse();
+        if (gifts.isEmpty()) {
+            gifts.addAll(fallbackAiGifts(request, tagNames));
+        }
         resp.setGifts(gifts);
-        resp.setSummary("基于收礼人画像生成 " + hits.size() + " 个搜索关键词，权重越高越优先搜索");
+        resp.setSummary(gifts.isEmpty()
+                ? "当前预算内没有可用候选，请适当提高预算或补充画像"
+                : "AI 服务暂不可用，已降级为本地画像与关键词图谱推荐");
+        resp.setAiGenerated(false);
+        resp.setFallbackUsed(true);
         return resp;
     }
 
@@ -141,17 +204,27 @@ public class RecommendationService {
         List<AiGift> gifts = request.getGifts() != null ? request.getGifts() : new ArrayList<>();
 
         // 关键词搜索：每个关键词独立去拼多多搜索，按关键词权重排序
-        List<CompletableFuture<RecommendItem>> futures = new ArrayList<>();
-        for (AiGift gi : gifts) {
-            futures.add(CompletableFuture.supplyAsync(() -> buildItemFromAiGift(gi, request.getBudget())));
-        }
-        for (CompletableFuture<RecommendItem> f : futures) {
+        List<CompletableFuture<RecommendItem>> futures = gifts.stream()
+                .limit(8)
+                .map(gift -> CompletableFuture
+                        .supplyAsync(() -> buildItemFromAiGift(gift, request.getBudget()), productSearchExecutor)
+                        .completeOnTimeout(null, 15, TimeUnit.SECONDS)
+                        .exceptionally(error -> {
+                            log.warn("Build item failed: {}", error.getMessage());
+                            return null;
+                        }))
+                .collect(Collectors.toList());
+        if (!futures.isEmpty()) {
             try {
-                RecommendItem item = f.get(20, TimeUnit.SECONDS);
-                if (item != null) items.add(item);
+                CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]))
+                        .get(16, TimeUnit.SECONDS);
             } catch (Exception e) {
-                log.warn("Build item failed: {}", e.getMessage());
+                log.warn("Product search batch timed out: {}", e.getMessage());
             }
+            futures.stream().filter(CompletableFuture::isDone)
+                    .map(future -> future.getNow(null))
+                    .filter(item -> item != null)
+                    .forEach(items::add);
         }
 
         // 排序：关键词权重高者优先，其次按匹配分数
@@ -163,12 +236,55 @@ public class RecommendationService {
             return Double.compare(sb, sa);
         });
 
+        // KG 增强通道：Neo4j 双通道结果合并（按 productId 去重，LLM 结果优先）
+        List<RecommendItem> kgItems = knowledgeGraphService.queryRecommendations(
+                recipient.getId(), request.getOccasion(), request.getBudget());
+        boolean kgEnhanced = !kgItems.isEmpty();
+        if (!kgItems.isEmpty()) {
+            Set<Long> seen = items.stream()
+                    .map(RecommendItem::getProductId)
+                    .filter(id -> id != null && id > 0)
+                    .collect(Collectors.toSet());
+            for (RecommendItem ki : kgItems) {
+                if (ki.getProductId() == null || seen.add(ki.getProductId())) {
+                    items.add(ki);
+                }
+            }
+        }
+
+        List<String> profileTags = recipientTagMapper.selectList(new LambdaQueryWrapper<RecipientTag>()
+                .eq(RecipientTag::getRecipientId, recipient.getId())).stream()
+                .map(RecipientTag::getTagName).collect(Collectors.toList());
+        List<KeywordGraphService.KeywordHit> evidence = keywordGraphService.pickKeywords(
+                recipient, profileTags, request.getOccasion());
+        for (RecommendItem item : items) {
+            KeywordGraphService.KeywordHit hit = keywordGraphService.match(item.getProductName(), evidence);
+            // Ignore caller-supplied graph weight; evidence is recomputed from the owned profile.
+            item.setKeywordWeight(hit == null ? 0 : hit.getWeight());
+            double graphScore = hit == null ? 0 : Math.min(1, hit.getWeight() / 300.0);
+            double baseScore = item.getScore() == null ? 0 : item.getScore();
+            item.setScore(.75 * baseScore + .25 * graphScore);
+            List<RecommendItem.ScoreFactor> factors = new ArrayList<>();
+            factors.add(buildScoreFactor("商品基础匹配", .75, baseScore));
+            factors.add(buildScoreFactor("知识图谱关联", .25, graphScore));
+            item.setScoreFactors(factors);
+            if (hit != null && !hit.explanation().isBlank()) {
+                item.setReason(hit.explanation());
+                item.setReasoningChain(hit.evidenceChain());
+                kgEnhanced = true;
+            }
+        }
+        items = postProcessItems(items, tagSupplements, request.getBudget());
+        kgEnhanced = items.stream().anyMatch(item -> item.getKeywordWeight() > 0 || "kg".equals(item.getSource()));
+
         RecommendResponse response = new RecommendResponse();
         response.setRecipientId(recipient.getId());
         response.setRecipientName(recipient.getName());
         response.setOccasion(request.getOccasion());
         response.setBudget(request.getBudget());
         response.setItems(items);
+        response.setFallbackUsed(Boolean.TRUE.equals(request.getFallbackUsed()));
+        response.setKgEnhanced(kgEnhanced);
         response.setSummary(request.getSummary() != null && !request.getSummary().isBlank() ? request.getSummary()
                 : "根据" + recipient.getName() + "的特征，在" + occasionLabel + "场景下为您推荐以下礼物");
 
@@ -186,6 +302,7 @@ public class RecommendationService {
         matchReq.setExtraNote(request.getExtraNote());
         matchReq.setGifts(ai.getGifts());
         matchReq.setSummary(ai.getSummary());
+        matchReq.setFallbackUsed(ai.getFallbackUsed());
         return matchAndSearch(matchReq);
     }
 
@@ -233,11 +350,13 @@ public class RecommendationService {
         item.setKeywordWeight(gi.getWeight());
 
         Product matched = searchPlatformForGift(gi);
+        boolean liveMatch = matched != null;
         if (matched == null) {
             matched = matchToRealProduct(gi);
         }
         if (matched != null) {
             item.setProductId(matched.getId());
+            item.setProductName(matched.getName());
             item.setImageUrl(matched.getImageUrl() != null ? matched.getImageUrl() : "");
             item.setPlatform(matched.getPlatform() != null ? matched.getPlatform() : "拼多多");
             String url = matched.getPlatformUrl();
@@ -254,15 +373,30 @@ public class RecommendationService {
             double sales = salesScore(matched);
             double score = 0.50 * kw + 0.30 * fit + 0.20 * sales;
             item.setScore(Math.min(1.0, Math.max(0.0, score)));
+            item.setSource(liveMatch ? "pdd" : "local");
+            item.setScoreFactors(List.of(
+                    buildScoreFactor("兴趣/关键词命中", 0.50, kw),
+                    buildScoreFactor("价格贴近预算", 0.30, fit),
+                    buildScoreFactor("销量热度", 0.20, sales)));
         } else {
+            if (gi.getPrice() <= 0) return null;
             item.setProductId(-1L);
             item.setImageUrl("");
             item.setPlatform("拼多多");
             item.setPlatformUrl("https://mobile.yangkeduo.com/search_result.html?search_key="
                     + URLEncoder.encode(gi.getName(), StandardCharsets.UTF_8));
             item.setScore(0.50);
+            item.setSource("ai_fallback");
         }
         return item;
+    }
+
+    private RecommendItem.ScoreFactor buildScoreFactor(String label, double weight, double score) {
+        RecommendItem.ScoreFactor factor = new RecommendItem.ScoreFactor();
+        factor.setLabel(label);
+        factor.setWeight(weight);
+        factor.setScore(Math.min(1.0, Math.max(0.0, score)));
+        return factor;
     }
 
     private String stripParentheses(String text) {
@@ -394,6 +528,50 @@ public class RecommendationService {
         return false;
     }
 
+    private List<AiGift> normalizeAiGifts(List<AiGift> gifts, BigDecimal budget) {
+        if (gifts == null || gifts.isEmpty()) return new ArrayList<>();
+        Set<String> seen = new java.util.HashSet<>();
+        List<AiGift> normalized = new ArrayList<>();
+        for (AiGift gift : gifts) {
+            if (gift == null || gift.getName() == null || gift.getName().isBlank()
+                    || gift.getPrice() <= 0 || !Double.isFinite(gift.getPrice())) {
+                continue;
+            }
+            BigDecimal price = BigDecimal.valueOf(gift.getPrice());
+            if (budget != null && price.compareTo(budget) > 0) continue;
+            String name = abbreviate(gift.getName().trim(), 120);
+            String key = name.toLowerCase(Locale.ROOT);
+            if (!seen.add(key)) continue;
+            gift.setName(name);
+            gift.setReason(abbreviate(gift.getReason() == null ? "" : gift.getReason().trim(), 120));
+            gift.setPlatform("拼多多");
+            gift.setWeight(gift.getWeight() > 0 && Double.isFinite(gift.getWeight()) ? gift.getWeight() : 1.0);
+            if (gift.getTags() == null) {
+                gift.setTags(new ArrayList<>());
+            } else {
+                gift.setTags(gift.getTags().stream()
+                        .filter(tag -> tag != null && !tag.isBlank())
+                        .map(String::trim)
+                        .distinct()
+                        .limit(8)
+                        .collect(Collectors.toList()));
+            }
+            normalized.add(gift);
+            if (normalized.size() == 8) break;
+        }
+        return normalized;
+    }
+
+    private String safeSummary(String summary, String fallback) {
+        if (summary == null || summary.isBlank()) return fallback;
+        return abbreviate(summary.trim(), 200);
+    }
+
+    private String abbreviate(String value, int maxLength) {
+        if (value == null || value.length() <= maxLength) return value;
+        return value.substring(0, maxLength);
+    }
+
     /** AI 候选礼物按补充项过滤：只保留名称/理由/匹配点中出现补充项的礼物 */
     private List<AiGift> filterAiGiftsBySupplements(List<AiGift> gifts, Map<String, List<String>> tagSupplements) {
         List<String> keywords = flattenSupplementValues(tagSupplements);
@@ -420,6 +598,33 @@ public class RecommendationService {
                     item.getMatchTags() == null ? "" : String.join(" ", item.getMatchTags()));
             return containsAnyKeyword(text, keywords);
         }).collect(Collectors.toList());
+    }
+
+    private List<RecommendItem> postProcessItems(List<RecommendItem> items,
+                                                 Map<String, List<String>> tagSupplements,
+                                                 BigDecimal budget) {
+        List<RecommendItem> filtered = filterItemsBySupplements(items, tagSupplements);
+        Map<String, RecommendItem> unique = new LinkedHashMap<>();
+        for (RecommendItem item : filtered) {
+            if (item == null || item.getProductName() == null || item.getProductName().isBlank()
+                    || item.getPrice() == null || item.getPrice().signum() <= 0) {
+                continue;
+            }
+            if (budget != null && item.getPrice().compareTo(budget) > 0) continue;
+            String key = item.getProductId() != null && item.getProductId() > 0
+                    ? "id:" + item.getProductId()
+                    : "name:" + (item.getPlatform() == null ? "" : item.getPlatform()) + ":"
+                    + item.getProductName().trim().toLowerCase(Locale.ROOT);
+            unique.putIfAbsent(key, item);
+        }
+        return unique.values().stream()
+                .sorted(Comparator
+                        .comparing(RecommendItem::getScore,
+                                Comparator.nullsLast(Comparator.reverseOrder()))
+                        .thenComparing(RecommendItem::getKeywordWeight, Comparator.reverseOrder())
+                        .thenComparing(RecommendItem::getProductName))
+                .limit(8)
+                .collect(Collectors.toList());
     }
 
     private void saveHistory(Long userId, Long recipientId, String occasion,
@@ -469,7 +674,8 @@ public class RecommendationService {
     // ---------- Prompt Engineering ----------
 
     private String buildPrompt(Recipient recipient, List<String> tags, Map<String, List<String>> tagSupplements,
-                               String occasion, BigDecimal budget, String extraNote) {
+                               String occasion, BigDecimal budget, String extraNote,
+                               Map<String, List<String>> tagToCat) {
         String tagStr = tags.isEmpty() ? "暂无标签" : String.join("、", tags);
         String relationStr = recipient.getRelation() != null ? recipient.getRelation() : "未指定";
         String genderStr;
@@ -483,6 +689,12 @@ public class RecommendationService {
         String noteStr = recipient.getNote() != null ? recipient.getNote() : "";
         String supplementStr = formatTagSupplements(tagSupplements);
         String extraStr = extraNote != null && !extraNote.isBlank() ? extraNote : "";
+        String kgStr = "";
+        if (tagToCat != null && !tagToCat.isEmpty()) {
+            StringBuilder sb = new StringBuilder("\n【知识图谱品类约束】收礼人兴趣对应的推荐品类如下，礼物应优先从这些品类中选择：\n");
+            tagToCat.forEach((t, cats) -> sb.append("- ").append(t).append(" → ").append(String.join("、", cats)).append("\n"));
+            kgStr = sb.toString();
+        }
 
         return String.format(
             "你是一位温暖细腻的礼物推荐顾问，擅长从收礼人的全部画像出发，挑选既有情感温度又贴合适用的礼物。\n" +
@@ -499,6 +711,7 @@ public class RecommendationService {
             "- 标签补充项：%s\n" +
             "- 最近购买/关注：%s\n" +
             "- 备注：%s\n" +
+            "%s" +
             "\n" +
             "【送礼场景】%s\n" +
             "【预算】¥%s（推荐价格应在预算的60%%-100%%之间，不要远低于预算）\n" +
@@ -507,12 +720,12 @@ public class RecommendationService {
             "【挑选原则】\n" +
             "1. 综合考量收礼人的关系、性别、年龄段、MBTI、性格特点、兴趣标签、最近购买/关注、备注等全部画像信息，每件礼物至少与其中 3 项深度契合，避免泛泛之物；\n" +
             "2. 兼顾情感价值与实用性，优先能体现“用心”的礼物，可包含定制款、小众款；\n" +
-            "3. 价格应尽量接近预算（在预算的60%-100%之间），不要推荐远低于预算的廉价品，也不要超出预算；\n" +
+            "3. 价格应尽量接近预算（在预算的60%%-100%%之间），不要推荐远低于预算的廉价品，也不要超出预算；\n" +
             "4. 参考最近购买/关注，避免重复品类，可做有益补充；\n" +
             "5. 每件标注购买平台为拼多多；\n" +
             "6. 若有 MBTI，按人格特质匹配（如 INTJ 偏好实用工具/高质感，ENFP 偏好创意/体验，ISFJ 偏好温馨实用）；\n" +
             "7. 若某个兴趣标签带有补充项，只推荐与该补充项强相关的礼物，不得推荐不符合补充项的商品（例如音乐-吉他只能推吉他/贝斯相关，运动-羽毛球只能推羽毛球相关）；\n" +
-            "8. 推荐理由须在25字以内，以\"动词+称谓\"开头（如\"让妈妈\"\"给朋友\"\"送TA\"），语言柔和温暖，让收礼人感受到被理解与珍视。\n" +
+            "8. 推荐理由在100字以内，自然说明性格/兴趣、关系与场景的契合点。只有图谱证据支持的维度才能称为图谱结论；缺失维度不编造。\n" +
             "\n" +
             "严格按以下 JSON 返回（不要 markdown 代码块、不要多余文字）：\n" +
             "{\n" +
@@ -520,7 +733,7 @@ public class RecommendationService {
             "    {\n" +
             "      \"name\": \"礼物名称（含品牌/型号，便于搜索）\",\n" +
             "      \"price\": 价格数字,\n" +
-            "      \"reason\": \"25字以内推荐理由，以动词+称谓开头，如：送妈妈一束永生花\",\n" +
+            "      \"reason\": \"100字以内，结合有依据的偏好、关系与场景说明适合原因\",\n" +
             "      \"tags\": [\"匹配点1\", \"匹配点2\"],\n" +
             "      \"platform\": \"拼多多\"\n" +
             "    }\n" +
@@ -529,6 +742,7 @@ public class RecommendationService {
             "}",
             recipient.getName(), relationStr, genderStr, ageStr, mbtiStr, personalityStr, tagStr,
             supplementStr.isEmpty() ? "暂无" : supplementStr, purchasesStr, noteStr,
+            kgStr,
             occasion, budget,
             extraStr.isEmpty() ? "" : "【额外说明】" + extraStr + "\n"
         );
@@ -571,7 +785,7 @@ public class RecommendationService {
 
     public Page<RecommendationHistory> history(int page, int size) {
         Long userId = StpUtil.getLoginIdAsLong();
-        Page<RecommendationHistory> p = new Page<>(page, size);
+        Page<RecommendationHistory> p = new Page<>(Math.max(1, page), Math.max(1, Math.min(size, 100)));
         Page<RecommendationHistory> result = historyMapper.selectPage(p,
                 new LambdaQueryWrapper<RecommendationHistory>()
                         .eq(RecommendationHistory::getUserId, userId)
@@ -608,13 +822,27 @@ public class RecommendationService {
     }
 
     public void deleteHistories(List<Long> ids) {
+        if (ids == null || ids.isEmpty()) return;
         Long userId = StpUtil.getLoginIdAsLong();
-        for (Long id : ids) {
+        for (Long id : ids.stream().filter(java.util.Objects::nonNull).distinct().limit(100).collect(Collectors.toList())) {
             RecommendationHistory history = historyMapper.selectById(id);
             if (history != null && history.getUserId().equals(userId)) {
                 historyMapper.deleteById(id);
             }
         }
+    }
+
+    public void trackEvent(RecommendEventRequest request) {
+        if (recommendEventMapper == null) return;
+        RecommendEvent event = new RecommendEvent();
+        event.setUserId(StpUtil.getLoginIdAsLong());
+        event.setRecipientId(request.getRecipientId());
+        event.setOccasion(abbreviate(request.getOccasion(), 50));
+        event.setProductId(request.getProductId());
+        event.setProductName(abbreviate(request.getProductName(), 200));
+        event.setEventType(request.getEventType());
+        event.setCreateTime(java.time.LocalDateTime.now());
+        recommendEventMapper.insert(event);
     }
 
     // ---------- Fallback Mock (used when AI is unavailable) ----------

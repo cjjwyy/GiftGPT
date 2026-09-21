@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.giftgpt.auth.entity.DataAuthorization;
 import com.giftgpt.auth.mapper.DataAuthorizationMapper;
 import com.giftgpt.common.result.Result;
+import com.giftgpt.common.result.ResultCode;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -35,7 +36,7 @@ public class AuthorizationController {
     public Result<DataAuthorization> update(@PathVariable Long id, @RequestBody DataAuthorization body) {
         DataAuthorization auth = authorizationMapper.selectById(id);
         if (auth == null || !auth.getUserId().equals(StpUtil.getLoginIdAsLong())) {
-            return Result.fail(403, "无权操作");
+            return Result.fail(ResultCode.FORBIDDEN);
         }
         auth.setAuthorizedScope(body.getAuthorizedScope());
         auth.setExpireAt(body.getExpireAt());
@@ -48,7 +49,7 @@ public class AuthorizationController {
     public Result<Void> revoke(@PathVariable Long id) {
         DataAuthorization auth = authorizationMapper.selectById(id);
         if (auth == null || !auth.getUserId().equals(StpUtil.getLoginIdAsLong())) {
-            return Result.fail(403, "无权操作");
+            return Result.fail(ResultCode.FORBIDDEN);
         }
         auth.setStatus("revoked");
         authorizationMapper.updateById(auth);

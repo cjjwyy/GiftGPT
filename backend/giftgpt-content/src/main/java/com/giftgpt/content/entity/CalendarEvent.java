@@ -11,6 +11,10 @@ import java.time.LocalDate;
 @EqualsAndHashCode(callSuper = true)
 @TableName("calendar_event")
 public class CalendarEvent extends BaseEntity {
+    @com.baomidou.mybatisplus.annotation.TableField(exist = false)
+    private LocalDate nextOccurrence;
+    @com.baomidou.mybatisplus.annotation.TableField(exist = false)
+    private Long daysUntil;
 
     private Long userId;
     private Long recipientId;

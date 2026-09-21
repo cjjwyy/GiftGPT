@@ -25,20 +25,35 @@ function avatarText(s: StoryItem) {
 
 export default function StoriesPage() {
   const [stories, setStories] = useState<StoryItem[]>([]);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [loading, setLoading] = useState(true);
   const [replyOpen, setReplyOpen] = useState<number | null>(null);
   const [replyText, setReplyText] = useState('');
   const [replies, setReplies] = useState<Record<number, Reply[]>>({});
+  const [replyPages, setReplyPages] = useState<Record<number, { current: number; pages: number; total: number }>>({});
+  const [moreRepliesBusy, setMoreRepliesBusy] = useState(false);
   const [replyLoading, setReplyLoading] = useState(false);
   const [busy, setBusy] = useState<number | null>(null);
 
   const fetchStories = () => {
     storyApi.list()
-      .then(d => { setStories(d.records || []); setLoading(false); })
+      .then(d => { setStories(d.records || []); setPage(1); setHasMore(d.pages > 1); setLoading(false); })
       .catch((err: any) => { setStories([]); setLoading(false); toast.error(err?.message || '加载故事失败'); });
   };
 
   useEffect(() => { fetchStories(); }, []);
+  const loadMore = async () => {
+    if (loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const data = await storyApi.list(page + 1);
+      setStories(prev => Array.from(new Map([...prev, ...data.records].map(s => [s.id, s])).values()));
+      setPage(page + 1); setHasMore(page + 1 < data.pages);
+    } catch { toast.error('加载失败，请重试'); }
+    finally { setLoadingMore(false); }
+  };
 
   const handleLike = async (s: StoryItem) => {
     if (busy) return;
@@ -67,20 +82,21 @@ export default function StoriesPage() {
     if (!replies[storyId]) {
       try {
         const data = await storyApi.getReplies(storyId);
-        setReplies(prev => ({ ...prev, [storyId]: data as Reply[] || [] }));
+        setReplies(prev => ({ ...prev, [storyId]: data.records || [] }));
+        setReplyPages(prev => ({ ...prev, [storyId]: { current: data.current, pages: data.pages, total: data.total } }));
       } catch { toast.error('加载评论失败'); }
     }
   };
 
   const submitReply = async (storyId: number) => {
+    if (replyLoading) return;
     if (!replyText.trim()) { toast.error('请输入评论内容'); return; }
     setReplyLoading(true);
     try {
-      const newReply = await storyApi.addReply(storyId, { content: replyText.trim() });
-      setReplies(prev => ({
-        ...prev,
-        [storyId]: [...(prev[storyId] || []), newReply as Reply],
-      }));
+      await storyApi.addReply(storyId, { content: replyText.trim() });
+      const data = await storyApi.getReplies(storyId);
+      setReplies(prev => ({ ...prev, [storyId]: data.records || [] }));
+      setReplyPages(prev => ({ ...prev, [storyId]: { current: data.current, pages: data.pages, total: data.total } }));
       setReplyText('');
       toast.success('评论成功');
     } catch (err: any) {
@@ -119,6 +135,11 @@ export default function StoriesPage() {
               </div>
 
               <h3 className="font-semibold text-gray-900 dark:text-white mb-1.5">{s.title}</h3>
+              {(s as StoryItem & { canDelete?: boolean }).canDelete && <button className="text-xs text-rose-500" onClick={async () => {
+                if (!confirm('删除这篇故事？')) return;
+                try { await storyApi.delete(s.id); setStories(prev => prev.filter(x => x.id !== s.id)); }
+                catch { toast.error('删除失败'); }
+              }}>删除我的故事</button>}
               <p className="text-gray-600 dark:text-gray-300 leading-relaxed whitespace-pre-wrap">{s.content}</p>
 
               <div className="flex items-center gap-5 mt-5 pt-4 border-t border-gray-100 dark:border-gray-800">
@@ -135,7 +156,7 @@ export default function StoriesPage() {
                   className="flex items-center gap-1.5 text-sm text-gray-400 dark:text-gray-500 hover:text-primary-500 transition-colors"
                 >
                   <MessageSquare className="w-4 h-4" />
-                  <span>评论{list.length > 0 ? ` ${list.length}` : ''}</span>
+                  <span>评论{replyPages[s.id] ? ` ${replyPages[s.id].total}` : ''}</span>
                 </button>
               </div>
 
@@ -161,6 +182,14 @@ export default function StoriesPage() {
                   ) : (
                     <p className="text-sm text-gray-400 dark:text-gray-500 mb-4">暂无评论，来做第一个评论者吧</p>
                   )}
+                  {replyPages[s.id]?.current < replyPages[s.id]?.pages && <button className="text-sm text-primary-500 mb-3" disabled={moreRepliesBusy} onClick={async () => {
+                    setMoreRepliesBusy(true);
+                    try {
+                      const data = await storyApi.getReplies(s.id, replyPages[s.id].current + 1);
+                      setReplies(prev => ({ ...prev, [s.id]: Array.from(new Map([...(prev[s.id] || []), ...data.records].map(r => [r.id, r])).values()) }));
+                      setReplyPages(prev => ({ ...prev, [s.id]: { current: data.current, pages: data.pages, total: data.total } }));
+                    } catch { toast.error('加载评论失败'); } finally { setMoreRepliesBusy(false); }
+                  }}>加载更多评论</button>}
                   <div className="flex gap-2">
                     <input
                       className="input-field flex-1 text-sm"
@@ -183,6 +212,7 @@ export default function StoriesPage() {
           );
         })}
 
+        {hasMore && <button className="btn-outline w-full" disabled={loadingMore} onClick={loadMore}>{loadingMore ? '加载中…' : '加载更多'}</button>}
         {stories.length === 0 && (
           <div className="card text-center py-20 text-gray-400 dark:text-gray-500">
             <MessageSquare className="w-12 h-12 mx-auto mb-3 opacity-40" />

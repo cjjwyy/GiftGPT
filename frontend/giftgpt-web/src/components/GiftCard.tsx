@@ -1,8 +1,16 @@
 'use client';
 
 import { useState } from 'react';
-import { Gift, Package, Share2 } from 'lucide-react';
+import { BarChart3, Gift, Package, Share2 } from 'lucide-react';
 import Link from 'next/link';
+import Image from 'next/image';
+import { recommendApi } from '@/lib/api';
+
+interface ScoreFactor {
+  label: string;
+  weight: number;
+  score: number;
+}
 
 interface GiftCardProps {
   productId: number;
@@ -18,11 +26,14 @@ interface GiftCardProps {
   recipientId?: number;
   occasion?: string;
   reasoningChain?: string;
+  source?: string;
+  scoreFactors?: ScoreFactor[];
 }
 
 function ReasoningChain({ chain }: { chain: string }) {
   const [open, setOpen] = useState(false);
   if (!chain) return null;
+  const evidenceRows = chain.includes('独立原文支持') ? chain.split('；') : null;
   const parts = chain.split('→').map(s => s.trim()).filter(Boolean);
   if (parts.length < 2) return null;
   return (
@@ -36,7 +47,7 @@ function ReasoningChain({ chain }: { chain: string }) {
       </button>
       {open && (
         <div className="flex items-center flex-wrap gap-1 mt-1 p-2 rounded-lg bg-gray-50 dark:bg-gray-800/50">
-          {parts.map((part, i) => {
+          {evidenceRows ? evidenceRows.map((row, i) => <p key={i} className="w-full text-xs text-gray-600 dark:text-gray-300">{row}</p>) : parts.map((part, i) => {
             const isRel = part.startsWith('[:') || part.length <= 4;
             const label = part.replace(/^\[:/, '').replace(/\]$/, '').replace(/^\(/, '').replace(/\)$/, '');
             return (
@@ -58,16 +69,34 @@ function ReasoningChain({ chain }: { chain: string }) {
   );
 }
 
-export function GiftCard({ productId, productName, price, imageUrl, platform, platformUrl, reason, matchTags, score, recipientName, recipientId, occasion, reasoningChain }: GiftCardProps) {
+export function GiftCard({ productId, productName, price, imageUrl, platform, platformUrl, reason, matchTags, score, recipientName, recipientId, occasion, reasoningChain, source, scoreFactors }: GiftCardProps) {
   const [imgError, setImgError] = useState(false);
+  const [showScore, setShowScore] = useState(false);
+  const sourceLabel = source === 'pdd' ? '实时商品'
+    : source === 'local' ? '本地商品'
+      : source === 'kg' ? '知识图谱'
+        : source === 'ai_fallback' ? 'AI建议·待核价' : '';
+
+  const track = (eventType: 'detail' | 'buy' | 'packaging') => {
+    void recommendApi.trackEvent({
+      recipientId,
+      occasion,
+      productId: productId > 0 ? productId : undefined,
+      productName,
+      eventType,
+    }).catch(() => undefined);
+  };
 
   return (
     <div className="card hover:shadow-lg transition-all duration-300 hover:-translate-y-1">
-      <div className="aspect-square bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 rounded-xl mb-4 flex items-center justify-center overflow-hidden">
+      <div className="aspect-square relative bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 rounded-xl mb-4 flex items-center justify-center overflow-hidden">
         {imageUrl && !imgError ? (
-          <img
+          <Image
             src={imageUrl}
             alt={productName}
+            fill
+            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
+            unoptimized
             referrerPolicy="no-referrer"
             className="w-full h-full object-cover"
             onError={() => setImgError(true)}
@@ -78,9 +107,12 @@ export function GiftCard({ productId, productName, price, imageUrl, platform, pl
       </div>
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <span className="text-xs px-2 py-0.5 rounded-full bg-rose-50 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400">
-            {platform || '拼多多'}
-          </span>
+          <div className="flex items-center gap-1">
+            <span className="text-xs px-2 py-0.5 rounded-full bg-rose-50 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400">
+              {platform || '拼多多'}
+            </span>
+            {sourceLabel && <span className="text-[11px] text-gray-400">{sourceLabel}</span>}
+          </div>
           {score !== undefined && score > 0 && (
             <span className="text-xs text-primary-600 bg-primary-50 dark:bg-primary-900/30 dark:text-primary-400 px-2 py-0.5 rounded-full">
               匹配 {(score * 100).toFixed(0)}%
@@ -97,21 +129,45 @@ export function GiftCard({ productId, productName, price, imageUrl, platform, pl
           </div>
         )}
         {reasoningChain && <ReasoningChain chain={reasoningChain} />}
+        {scoreFactors && scoreFactors.length > 0 && (
+          <div>
+            <button type="button" onClick={() => setShowScore(value => !value)}
+              className="text-xs text-primary-500 inline-flex items-center gap-1">
+              <BarChart3 className="w-3 h-3" /> 匹配分如何计算 {showScore ? '▾' : '▸'}
+            </button>
+            {showScore && (
+              <div className="mt-2 space-y-1.5 rounded-lg bg-gray-50 dark:bg-gray-800/50 p-2">
+                {scoreFactors.map(factor => (
+                  <div key={factor.label} className="text-[11px] text-gray-500 dark:text-gray-400">
+                    <div className="flex justify-between">
+                      <span>{factor.label} · 权重{Math.round(factor.weight * 100)}%</span>
+                      <span>{Math.round(factor.score * 100)}分</span>
+                    </div>
+                    <div className="h-1 bg-gray-200 dark:bg-gray-700 rounded mt-1 overflow-hidden">
+                      <div className="h-full bg-primary-500" style={{ width: `${Math.round(factor.score * 100)}%` }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
         <div className="flex items-center justify-between pt-2 border-t border-gray-50 dark:border-gray-800">
           <span className="text-xl font-bold text-rose-500">¥{price}</span>
           <div className="flex flex-col gap-2">
             <Link
-              href={`/packaging?productName=${encodeURIComponent(productName)}&price=${price}${imageUrl ? `&imageUrl=${encodeURIComponent(imageUrl)}` : ''}${recipientId ? `&recipientId=${recipientId}&recipientName=${encodeURIComponent(recipientName || '')}&occasion=${encodeURIComponent(occasion || '')}` : ''}`}
+              href={`/packaging?productName=${encodeURIComponent(productName)}&price=${price}${productId > 0 ? `&productId=${productId}` : ''}${imageUrl ? `&imageUrl=${encodeURIComponent(imageUrl)}` : ''}${recipientId ? `&recipientId=${recipientId}&recipientName=${encodeURIComponent(recipientName || '')}&occasion=${encodeURIComponent(occasion || '')}` : ''}`}
+              onClick={() => track('packaging')}
               className="btn-outline text-sm py-1.5 px-3 flex items-center justify-center gap-1"
             >
               <Package className="w-3.5 h-3.5" /> 包装
             </Link>
             {productId > 0 ? (
-              <Link href={`/products/${productId}`} className="btn-primary text-sm py-1.5 px-4 text-center">
+              <Link href={`/products/${productId}`} onClick={() => track('detail')} className="btn-primary text-sm py-1.5 px-4 text-center">
                 查看详情
               </Link>
             ) : platformUrl ? (
-              <a href={platformUrl} target="_blank" rel="noopener noreferrer" className="btn-primary text-sm py-1.5 px-4 text-center">
+              <a href={platformUrl} target="_blank" rel="noopener noreferrer" onClick={() => track('buy')} className="btn-primary text-sm py-1.5 px-4 text-center">
                 去购买
               </a>
             ) : null}

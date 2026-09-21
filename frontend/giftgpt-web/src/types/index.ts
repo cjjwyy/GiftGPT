@@ -47,6 +47,9 @@ export interface RecommendItem {
   score: number;
   reason: string;
   matchTags: string[];
+  source?: string;
+  reasoningChain?: string;
+  scoreFactors?: Array<{ label: string; weight: number; score: number }>;
 }
 
 export interface RecommendResponse {
@@ -56,6 +59,8 @@ export interface RecommendResponse {
   budget: number;
   items: RecommendItem[];
   summary: string;
+  fallbackUsed?: boolean;
+  kgEnhanced?: boolean;
 }
 
 export interface Product {
@@ -109,6 +114,8 @@ export interface StoryItem {
 }
 
 export interface CalendarEvent {
+  nextOccurrence?: string;
+  daysUntil?: number;
   id?: number;
   userId?: number;
   recipientId?: number;
@@ -116,6 +123,7 @@ export interface CalendarEvent {
   occasion?: string;
   eventDate: string;
   remindBeforeDays?: number;
+  isRepeat?: number;
 }
 
 export interface PageData<T> {

@@ -89,6 +89,8 @@ backend/giftgpt-server/src/main/resources/application-local.yml
 # --- Python test scripts ---
 test-*.py
 *.json
+!frontend/giftgpt-web/src/lib/graphVocabulary.json
+!crawl/reports/annotation-graph-audit.json
 reg.json
 
 # --- Claude settings ---

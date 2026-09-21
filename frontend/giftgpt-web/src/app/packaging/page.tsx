@@ -1,12 +1,14 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
 import { packagingApi, greetingApi } from '@/lib/api';
 import { Loading } from '@/components/Loading';
 import { Sparkles, Gift, History, ArrowLeft } from 'lucide-react';
 import { toast } from 'react-hot-toast';
+import Link from 'next/link';
+import Image from 'next/image';
 
 const GIFT_BOXES = [
   { id: 'classic', name: '经典缎面礼盒', desc: '硬质磁吸礼盒，缎面蝴蝶结，丝绒内衬', svg: '/packaging/box-classic.svg' },
@@ -34,14 +36,21 @@ const RIBBON_STYLES = [
 
 const SCENTS = ['玫瑰', '白茶', '雪松'];
 
+
 const BOX_MAP = Object.fromEntries(GIFT_BOXES.map(b => [b.id, b]));
 const RIBBON_MAP = Object.fromEntries(RIBBON_STYLES.map(r => [r.id, r]));
 
 function PackagingContent() {
+  const requestKey = useRef('');
+  const saveBusy = useRef(false);
+  const [BOX_PRICES, setBoxPrices] = useState<Record<string, number>>({});
+  const [CUSTOMIZATION_PRICES, setAddonPrices] = useState<Record<string, number>>({});
+  const [pricesReady, setPricesReady] = useState(false);
   const searchParams = useSearchParams();
   const productName = searchParams.get('productName') || '';
   const imageUrl = searchParams.get('imageUrl') || '';
   const productId = searchParams.get('productId') || '';
+  const productPrice = Number(searchParams.get('price') || 0);
   const recipientId = searchParams.get('recipientId') || '';
   const recipientName = searchParams.get('recipientName') || '';
   const occasion = searchParams.get('occasion') || '';
@@ -63,10 +72,15 @@ function PackagingContent() {
 
   const [history, setHistory] = useState<any[]>([]);
   const [viewingPlan, setViewingPlan] = useState<any>(null);
+  const [savedPlan, setSavedPlan] = useState<any>(null);
 
   const readOnly = !hasProduct || !!viewingPlan;
 
   useEffect(() => {
+    Promise.all([packagingApi.themes(), packagingApi.addonPrices()]).then(([themes, addons]) => {
+      setBoxPrices(Object.fromEntries(themes.map(t => [t.id, Number(t.price)])));
+      setAddonPrices(addons); setPricesReady(true);
+    }).catch(() => toast.error('价格配置加载失败，请刷新后重试'));
     if (!hasProduct) {
       packagingApi.list(1, 20).then(d => setHistory(d.records || []))
         .catch((err: any) => toast.error(err?.message || '加载包装历史失败'));
@@ -87,6 +101,7 @@ function PackagingContent() {
     try {
       const res = await packagingApi.aiRecommend({
         productName,
+        productPrice: productPrice > 0 ? productPrice : undefined,
       });
       setSelectedBox('');
       setCustoms(new Set());
@@ -102,7 +117,7 @@ function PackagingContent() {
       if (res.scent) { setScent(res.scent); newCustoms.add('scent'); }
       if (res.wrappingStyle) setRibbonStyle(res.wrappingStyle);
       setCustoms(newCustoms);
-      toast.success('AI智能包装推荐已完成');
+      toast.success(res.aiGenerated ? 'AI 包装推荐已完成' : 'AI 暂不可用，已使用默认包装方案');
     } catch (e: any) { toast.error(e?.message || 'AI推荐失败'); }
     setAiLoading(false);
   };
@@ -125,24 +140,32 @@ function PackagingContent() {
   };
 
   const onSave = async () => {
+    if (saveBusy.current || !pricesReady) return;
     if (!selectedBox) { toast.error('请选择礼盒'); return; }
+    saveBusy.current = true;
+    if (!requestKey.current) requestKey.current = crypto.randomUUID();
     setSaving(true);
     try {
-      await packagingApi.save({
+      const saved = await packagingApi.save({
+        planId: savedPlan?.id, version: savedPlan?.version, requestKey: requestKey.current,
         productName, productImageUrl: imageUrl,
+        productPrice: productPrice > 0 ? productPrice : undefined,
         productId: productId ? Number(productId) : undefined,
         packagingType: selectedBox,
         ribbonText: customs.has('ribbon_text') ? ribbonText : undefined,
         ribbonColor: customs.has('ribbon_text') ? ribbonColor : undefined,
         scent: customs.has('scent') ? scent : undefined,
         customText: customs.has('greeting_card') ? cardText : undefined,
+        customizations: Array.from(customs),
         wrappingStyle: ribbonStyle,
         recipientId: recipientId ? Number(recipientId) : undefined,
         occasion: occasion || undefined,
       });
+      setSavedPlan(saved);
       toast.success('包装方案已保存');
     } catch (e: any) { toast.error(e?.message || '保存失败'); }
     setSaving(false);
+    saveBusy.current = false;
   };
 
   const viewPlan = (plan: any) => {
@@ -157,7 +180,8 @@ function PackagingContent() {
     if (plan.ribbonText) c.add('ribbon_text');
     if (plan.customText) c.add('greeting_card');
     if (plan.scent) c.add('scent');
-    setCustoms(c);
+    try { setCustoms(plan.customizationsJson ? new Set<string>(JSON.parse(plan.customizationsJson)) : c); }
+    catch { setCustoms(c); }
   };
 
   const backToBrowse = () => {
@@ -173,6 +197,8 @@ function PackagingContent() {
 
   const dispProductName = viewingPlan?.productName || productName;
   const dispImageUrl = viewingPlan?.productImageUrl || imageUrl;
+  const packagingTotal = (BOX_PRICES[selectedBox] || 0)
+    + Array.from(customs).reduce((sum, item) => sum + (CUSTOMIZATION_PRICES[item] || 0), 0);
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-10">
@@ -188,7 +214,7 @@ function PackagingContent() {
       {(hasProduct || viewingPlan) && (
         <div className="card mb-6 flex items-center gap-4 p-4">
           {dispImageUrl ? (
-            <img src={dispImageUrl} alt={dispProductName} referrerPolicy="no-referrer"
+            <Image src={dispImageUrl} alt={dispProductName} width={64} height={64} unoptimized referrerPolicy="no-referrer"
               className="w-16 h-16 rounded-lg object-cover" />
           ) : (
             <div className="w-16 h-16 rounded-lg bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
@@ -219,9 +245,10 @@ function PackagingContent() {
         {GIFT_BOXES.map(box => (
           <button key={box.id} onClick={() => !readOnly && setSelectedBox(box.id)} disabled={readOnly}
             className={`card p-3 text-center transition-all ${selectedBox === box.id ? 'ring-2 ring-primary-500' : 'hover:shadow-md'} ${readOnly ? 'cursor-default' : ''}`}>
-            <img src={box.svg} alt={box.name} className="w-full aspect-square object-contain mb-2" />
+            <Image src={box.svg} alt={box.name} width={160} height={160} className="w-full aspect-square object-contain mb-2" />
             <p className="text-sm font-medium text-gray-800 dark:text-gray-100">{box.name}</p>
             <p className="text-xs text-gray-400 mt-0.5 line-clamp-2">{box.desc}</p>
+            <p className="text-xs text-rose-500 mt-1">{pricesReady ? `¥${BOX_PRICES[box.id]?.toFixed(2)}` : '价格加载中'}</p>
           </button>
         ))}
       </div>
@@ -233,9 +260,10 @@ function PackagingContent() {
           <div key={c.id} className={`card p-4 flex items-center gap-4 transition-all ${customs.has(c.id) ? 'ring-1 ring-primary-300' : ''}`}>
             <input type="checkbox" checked={customs.has(c.id)} onChange={() => toggleCustom(c.id)} disabled={readOnly}
               className="w-5 h-5 rounded border-gray-300 text-primary-500 focus:ring-primary-500" />
-            <img src={c.svg} alt={c.name} className="w-12 h-12 object-contain" />
+            <Image src={c.svg} alt={c.name} width={48} height={48} className="w-12 h-12 object-contain" />
             <div className="flex-1">
               <p className="font-medium text-gray-800 dark:text-gray-100">{c.name}</p>
+              <p className="text-xs text-rose-500">{pricesReady ? `+¥${CUSTOMIZATION_PRICES[c.id]?.toFixed(2)}` : '价格加载中'}</p>
               {c.id === 'ribbon_text' && customs.has('ribbon_text') && (
                 <div className="flex items-center gap-2 mt-2">
                   <input value={ribbonText} onChange={e => setRibbonText(e.target.value.slice(0, 10))} disabled={readOnly}
@@ -274,7 +302,7 @@ function PackagingContent() {
         {RIBBON_STYLES.map(r => (
           <button key={r.id} onClick={() => !readOnly && setRibbonStyle(r.id)} disabled={readOnly}
             className={`card p-3 text-center transition-all ${ribbonStyle === r.id ? 'ring-2 ring-primary-500' : 'hover:shadow-md'} ${readOnly ? 'cursor-default' : ''}`}>
-            <img src={r.svg} alt={r.name} className="w-full aspect-square object-contain mb-2" />
+            <Image src={r.svg} alt={r.name} width={180} height={180} className="w-full aspect-square object-contain mb-2" />
             <p className="text-sm font-medium text-gray-800 dark:text-gray-100">{r.name}</p>
           </button>
         ))}
@@ -283,11 +311,17 @@ function PackagingContent() {
       {/* Save (only in create mode) */}
       {!readOnly && (
         <div className="card flex items-center justify-between p-4 sticky bottom-4">
-          <p className="text-sm text-gray-400">确认包装方案后保存</p>
-          <button onClick={onSave} disabled={saving || !selectedBox}
-            className="btn-primary py-2.5 px-8 disabled:opacity-40">
-            {saving ? '保存中...' : '确认包装方案'}
-          </button>
+          <div>
+            <p className="text-sm text-gray-400">包装费用由系统按所选项目计算</p>
+            <p className="text-lg font-bold text-rose-500">¥{packagingTotal.toFixed(2)}</p>
+          </div>
+          <div className="flex items-center gap-2">
+            {savedPlan?.giftRecordId && <Link href={`/gifts/${savedPlan.giftRecordId}`} className="btn-outline py-2.5 px-5">查看送礼记录</Link>}
+            <button onClick={onSave} disabled={saving || !selectedBox || !pricesReady}
+              className="btn-primary py-2.5 px-8 disabled:opacity-40">
+              {saving ? '保存中...' : savedPlan ? '重新保存' : '确认包装方案'}
+            </button>
+          </div>
         </div>
       )}
 
@@ -305,7 +339,7 @@ function PackagingContent() {
                 <button key={p.id} onClick={() => viewPlan(p)}
                   className="card p-4 flex items-center gap-4 hover:shadow-md transition-all text-left w-full">
                   {p.productImageUrl ? (
-                    <img src={p.productImageUrl} alt={p.productName} referrerPolicy="no-referrer"
+                    <Image src={p.productImageUrl} alt={p.productName} width={48} height={48} unoptimized referrerPolicy="no-referrer"
                       className="w-12 h-12 rounded-lg object-cover" />
                   ) : (
                     <div className="w-12 h-12 rounded-lg bg-gray-100 dark:bg-gray-800 flex items-center justify-center">

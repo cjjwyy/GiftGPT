@@ -244,6 +244,7 @@ ALTER TABLE recipient_tag ADD COLUMN IF NOT EXISTS supplement VARCHAR(500);
 ALTER TABLE packaging ALTER COLUMN order_id SET NULL;
 ALTER TABLE packaging ADD COLUMN IF NOT EXISTS user_id BIGINT;
 ALTER TABLE packaging ADD COLUMN IF NOT EXISTS gift_record_id BIGINT;
+ALTER TABLE packaging ADD COLUMN IF NOT EXISTS product_id BIGINT;
 ALTER TABLE packaging ADD COLUMN IF NOT EXISTS product_name VARCHAR(200);
 ALTER TABLE packaging ADD COLUMN IF NOT EXISTS product_price DECIMAL(10,2);
 ALTER TABLE packaging ADD COLUMN IF NOT EXISTS product_image_url VARCHAR(500);
@@ -261,8 +262,87 @@ CREATE TABLE IF NOT EXISTS logistics_event (
     location VARCHAR(100),
     status VARCHAR(30),
     description VARCHAR(255),
+    source VARCHAR(20) DEFAULT 'simulation',
     create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- In-app reminders generated from calendar events.
+CREATE TABLE IF NOT EXISTS notification (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    calendar_event_id BIGINT NOT NULL,
+    occurrence_date DATE NOT NULL,
+    title VARCHAR(150) NOT NULL,
+    content VARCHAR(500),
+    is_read TINYINT DEFAULT 0,
+    create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_notification_event_occurrence
+    ON notification(calendar_event_id, occurrence_date);
+CREATE INDEX IF NOT EXISTS idx_notification_user_read
+    ON notification(user_id, is_read, create_time);
+ALTER TABLE logistics_event ADD COLUMN IF NOT EXISTS source VARCHAR(20) DEFAULT 'simulation';
+
 -- Feedback role (Task T4)
 ALTER TABLE feedback ADD COLUMN IF NOT EXISTS role VARCHAR(10) DEFAULT 'sender';
+
+-- One-time, hashed access links let recipients respond without exposing sender APIs.
+CREATE TABLE IF NOT EXISTS feedback_access_token (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    gift_record_id BIGINT NOT NULL,
+    token_hash VARCHAR(64) NOT NULL,
+    expire_at TIMESTAMP NOT NULL,
+    used TINYINT DEFAULT 0,
+    create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_feedback_access_token_hash
+    ON feedback_access_token(token_hash);
+CREATE INDEX IF NOT EXISTS idx_feedback_access_token_gift
+    ON feedback_access_token(gift_record_id);
+
+-- Recommendation interaction events for CTR / feedback-loop analysis
+CREATE TABLE IF NOT EXISTS recommend_event (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    recipient_id BIGINT,
+    occasion VARCHAR(50),
+    product_id BIGINT,
+    product_name VARCHAR(200),
+    event_type VARCHAR(20) NOT NULL,
+    create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_recommend_event_user_time
+    ON recommend_event(user_id, create_time);
+
+-- AI reliability and token-usage metrics. Prompts and responses are intentionally not stored.
+CREATE TABLE IF NOT EXISTS ai_invocation_log (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT,
+    scene VARCHAR(50),
+    model VARCHAR(50),
+    prompt_tokens INT DEFAULT 0,
+    completion_tokens INT DEFAULT 0,
+    latency_ms BIGINT DEFAULT 0,
+    success TINYINT DEFAULT 0,
+    fallback TINYINT DEFAULT 0,
+    error_type VARCHAR(100),
+    create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_ai_invocation_log_time
+    ON ai_invocation_log(create_time);
+
+-- Prevent duplicate platform products under concurrent searches.
+CREATE UNIQUE INDEX IF NOT EXISTS ux_product_platform_name
+    ON product(platform, name);
+
+-- A gift can be checked out only once; the service also handles legacy duplicates defensively.
+CREATE UNIQUE INDEX IF NOT EXISTS ux_order_gift_record
+    ON "order"(gift_record_id);
+
+ALTER TABLE packaging ADD COLUMN IF NOT EXISTS request_key VARCHAR(64);
+ALTER TABLE packaging ADD COLUMN IF NOT EXISTS customizations_json VARCHAR(2000);
+ALTER TABLE packaging ADD COLUMN IF NOT EXISTS price_details_json VARCHAR(2000);
+ALTER TABLE packaging ADD COLUMN IF NOT EXISTS version INT DEFAULT 0;
+CREATE UNIQUE INDEX IF NOT EXISTS ux_packaging_request ON packaging(user_id, request_key);

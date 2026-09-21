@@ -1,0 +1,500 @@
+{
+  "personality": [
+    {
+      "value": "开朗",
+      "label": "开朗",
+      "description": "偏好轻松互动、表达与分享",
+      "aliases": [
+        "热情",
+        "热血"
+      ]
+    },
+    {
+      "value": "文艺",
+      "label": "文艺",
+      "description": "偏好文字、设计与富有审美的表达",
+      "aliases": []
+    },
+    {
+      "value": "浪漫",
+      "label": "浪漫",
+      "description": "看重情感表达、纪念意义与仪式感",
+      "aliases": [
+        "仪式感"
+      ]
+    },
+    {
+      "value": "理性",
+      "label": "理性",
+      "description": "看重明确用途、功能与使用体验",
+      "aliases": []
+    },
+    {
+      "value": "简约",
+      "label": "简约",
+      "description": "偏好简洁造型与低负担设计",
+      "aliases": []
+    },
+    {
+      "value": "复古",
+      "label": "复古",
+      "description": "偏好经典造型与怀旧元素",
+      "aliases": []
+    },
+    {
+      "value": "幽默",
+      "label": "幽默",
+      "description": "喜欢轻松有趣、创意搞怪的表达",
+      "aliases": [
+        "沙雕",
+        "抽象"
+      ]
+    },
+    {
+      "value": "可爱",
+      "label": "可爱",
+      "description": "偏好萌系形象与柔软亲切的设计",
+      "aliases": []
+    },
+    {
+      "value": "细致",
+      "label": "细致",
+      "description": "重视耐心制作与细节体验",
+      "aliases": [
+        "耐心"
+      ]
+    },
+    {
+      "value": "条理",
+      "label": "条理",
+      "description": "偏好整理、规划与秩序",
+      "aliases": []
+    },
+    {
+      "value": "自律",
+      "label": "自律",
+      "description": "重视持续练习与习惯管理",
+      "aliases": []
+    },
+    {
+      "value": "感性",
+      "label": "感性",
+      "description": "重视个人情绪与情感共鸣",
+      "aliases": []
+    },
+    {
+      "value": "安全感",
+      "label": "安全感",
+      "description": "偏好陪伴感与舒适氛围，不代表心理诊断",
+      "aliases": [
+        "胆小"
+      ]
+    }
+  ],
+  "interest": [
+    {
+      "value": "科技",
+      "label": "科技",
+      "description": "关注数码设备与技术体验",
+      "aliases": [
+        "极客"
+      ]
+    },
+    {
+      "value": "养生",
+      "label": "养生",
+      "description": "关注日常舒适与健康生活，不推断疗效",
+      "aliases": [
+        "养生派",
+        "健康"
+      ]
+    },
+    {
+      "value": "摄影",
+      "label": "摄影",
+      "description": "喜欢拍摄、影像记录与摄影器材",
+      "aliases": [
+        "拍照"
+      ]
+    },
+    {
+      "value": "户外",
+      "label": "户外",
+      "description": "喜欢户外活动与随行装备",
+      "aliases": []
+    },
+    {
+      "value": "音乐",
+      "label": "音乐",
+      "description": "喜欢聆听、演奏与音乐体验",
+      "aliases": [
+        "贝斯"
+      ]
+    },
+    {
+      "value": "运动",
+      "label": "运动",
+      "description": "喜欢体育活动与运动装备",
+      "aliases": [
+        "篮球"
+      ]
+    },
+    {
+      "value": "美食",
+      "label": "美食",
+      "description": "喜欢食品、烹饪与风味体验",
+      "aliases": [
+        "零食"
+      ]
+    },
+    {
+      "value": "咖啡",
+      "label": "咖啡",
+      "description": "喜欢咖啡品鉴与冲煮",
+      "aliases": []
+    },
+    {
+      "value": "旅行",
+      "label": "旅行",
+      "description": "喜欢出游与旅途记录",
+      "aliases": [
+        "旅游"
+      ]
+    },
+    {
+      "value": "阅读",
+      "label": "阅读",
+      "description": "喜欢书籍与阅读体验",
+      "aliases": [
+        "爱读书",
+        "文学"
+      ]
+    },
+    {
+      "value": "动漫",
+      "label": "动漫",
+      "description": "喜欢动漫角色与相关周边",
+      "aliases": []
+    },
+    {
+      "value": "游戏",
+      "label": "游戏",
+      "description": "喜欢电子游戏与游戏周边",
+      "aliases": []
+    },
+    {
+      "value": "宠物",
+      "label": "宠物",
+      "description": "关注宠物与宠物主题设计",
+      "aliases": []
+    },
+    {
+      "value": "时尚",
+      "label": "时尚",
+      "description": "关注服饰、配饰与穿搭",
+      "aliases": [
+        "穿搭",
+        "精致"
+      ]
+    },
+    {
+      "value": "美妆护肤",
+      "label": "美妆护肤",
+      "description": "关注护肤、彩妆与香氛",
+      "aliases": [
+        "爱美",
+        "护肤"
+      ]
+    },
+    {
+      "value": "艺术",
+      "label": "艺术",
+      "description": "喜欢绘画、艺术作品与创作",
+      "aliases": []
+    },
+    {
+      "value": "品茶",
+      "label": "品茶",
+      "description": "喜欢茶饮与茶器",
+      "aliases": [
+        "茶"
+      ]
+    },
+    {
+      "value": "手工",
+      "label": "手工",
+      "description": "喜欢拼装、手作与DIY",
+      "aliases": []
+    },
+    {
+      "value": "收藏",
+      "label": "收藏",
+      "description": "喜欢系列物品与纪念周边",
+      "aliases": []
+    },
+    {
+      "value": "手账",
+      "label": "手账",
+      "description": "喜欢书写、记录与手账制作",
+      "aliases": [
+        "记录"
+      ]
+    },
+    {
+      "value": "办公",
+      "label": "办公",
+      "description": "关注办公便利与桌面舒适",
+      "aliases": [
+        "工作"
+      ]
+    },
+    {
+      "value": "毛绒玩具",
+      "label": "毛绒玩具",
+      "description": "喜欢毛绒玩具与玩偶",
+      "aliases": []
+    },
+    {
+      "value": "居家",
+      "label": "居家",
+      "description": "关注家居用品与日常生活体验",
+      "aliases": []
+    },
+    {
+      "value": "园艺",
+      "label": "园艺",
+      "description": "喜欢植物与种植养护",
+      "aliases": []
+    },
+    {
+      "value": "酒饮",
+      "label": "酒饮",
+      "description": "喜欢酒饮风味，仅适合明确成年的饮酒者",
+      "aliases": [
+        "drink"
+      ]
+    }
+  ],
+  "relation": [
+    {
+      "value": "恋人",
+      "label": "恋人",
+      "description": "伴侣关系，重视彼此偏好与情感表达",
+      "aliases": [
+        "男朋友",
+        "女朋友",
+        "对象"
+      ]
+    },
+    {
+      "value": "夫妻",
+      "label": "夫妻",
+      "description": "婚姻伴侣，兼顾纪念意义与共同生活",
+      "aliases": [
+        "丈夫",
+        "妻子",
+        "老公",
+        "老婆"
+      ]
+    },
+    {
+      "value": "朋友",
+      "label": "朋友",
+      "description": "朋友间的心意与共同兴趣",
+      "aliases": [
+        "闺蜜",
+        "好友",
+        "兄弟"
+      ]
+    },
+    {
+      "value": "长辈",
+      "label": "长辈",
+      "description": "父母及其他长辈，关注实际需要与使用便利",
+      "aliases": [
+        "父母",
+        "父亲",
+        "母亲",
+        "爸爸",
+        "妈妈"
+      ]
+    },
+    {
+      "value": "晚辈",
+      "label": "晚辈",
+      "description": "晚辈，需结合具体年龄和兴趣",
+      "aliases": []
+    },
+    {
+      "value": "子女",
+      "label": "子女",
+      "description": "自己的孩子，需结合年龄和实际需求",
+      "aliases": [
+        "儿子",
+        "女儿",
+        "孩子"
+      ]
+    },
+    {
+      "value": "兄弟姐妹",
+      "label": "兄弟姐妹",
+      "description": "手足关系，结合熟悉的兴趣",
+      "aliases": [
+        "哥哥",
+        "姐姐",
+        "弟弟",
+        "妹妹"
+      ]
+    },
+    {
+      "value": "亲戚",
+      "label": "亲戚",
+      "description": "其他亲属，优先合宜与具体需求",
+      "aliases": []
+    },
+    {
+      "value": "家人",
+      "label": "家人",
+      "description": "未细分的家庭关系，不自动推断辈分",
+      "aliases": []
+    },
+    {
+      "value": "同事",
+      "label": "同事",
+      "description": "职场往来，关注实用、适度与边界",
+      "aliases": []
+    },
+    {
+      "value": "同学",
+      "label": "同学",
+      "description": "同学往来与共同经历",
+      "aliases": []
+    },
+    {
+      "value": "师生",
+      "label": "师生",
+      "description": "师生间表达心意，应遵守相关赠礼规范",
+      "aliases": [
+        "老师",
+        "教师"
+      ]
+    },
+    {
+      "value": "医生",
+      "label": "医生",
+      "description": "感谢医护，应遵守机构规定，避免贵重馈赠",
+      "aliases": [
+        "医护"
+      ]
+    },
+    {
+      "value": "其他",
+      "label": "其他",
+      "description": "尚未归类的关系",
+      "aliases": []
+    }
+  ],
+  "occasion": [
+    {
+      "value": "birthday",
+      "label": "生日",
+      "description": "庆祝个人成长与心意",
+      "aliases": []
+    },
+    {
+      "value": "anniversary",
+      "label": "纪念日",
+      "description": "纪念共同经历与情感",
+      "aliases": []
+    },
+    {
+      "value": "valentines",
+      "label": "情人节",
+      "description": "表达伴侣间的爱意",
+      "aliases": []
+    },
+    {
+      "value": "festival",
+      "label": "节庆",
+      "description": "节日问候与分享",
+      "aliases": [
+        "节庆送礼"
+      ]
+    },
+    {
+      "value": "graduation",
+      "label": "毕业",
+      "description": "纪念校园经历与新阶段",
+      "aliases": []
+    },
+    {
+      "value": "proposal",
+      "label": "求婚",
+      "description": "表达承诺与共同未来",
+      "aliases": []
+    },
+    {
+      "value": "mothers_day",
+      "label": "母亲节",
+      "description": "向母亲表达关怀",
+      "aliases": []
+    },
+    {
+      "value": "fathers_day",
+      "label": "父亲节",
+      "description": "向父亲表达关怀",
+      "aliases": []
+    },
+    {
+      "value": "teachers_day",
+      "label": "教师节",
+      "description": "适度表达对教师的感谢",
+      "aliases": []
+    },
+    {
+      "value": "christmas",
+      "label": "圣诞节",
+      "description": "节日祝福与惊喜",
+      "aliases": [
+        "圣诞"
+      ]
+    },
+    {
+      "value": "thank_you",
+      "label": "感谢",
+      "description": "表达谢意，注意关系边界",
+      "aliases": []
+    },
+    {
+      "value": "daily",
+      "label": "日常",
+      "description": "没有特定节日的日常心意",
+      "aliases": [
+        "无特定场景",
+        "日常搞怪"
+      ]
+    },
+    {
+      "value": "visit_patient",
+      "label": "探病",
+      "description": "探望慰问，以收礼人实际需要为准",
+      "aliases": [
+        "看望病人"
+      ]
+    },
+    {
+      "value": "family_visit",
+      "label": "提亲",
+      "description": "家庭见面与礼节表达",
+      "aliases": []
+    },
+    {
+      "value": "other",
+      "label": "其他",
+      "description": "未明确或其他场景",
+      "aliases": [
+        "不限"
+      ]
+    }
+  ]
+}

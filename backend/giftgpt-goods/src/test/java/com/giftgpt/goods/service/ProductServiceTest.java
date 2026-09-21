@@ -19,7 +19,7 @@ class ProductServiceTest {
 
     @Test
     @SuppressWarnings("unchecked")
-    void mergedSearchTotalShouldUseExternalSizePlusDbTotal() {
+    void searchShouldUseDatabaseAsSinglePaginationSourceAfterProviderRefresh() {
         ProductMapper productMapper = mock(ProductMapper.class);
         CommerceService commerceService = mock(CommerceService.class);
 
@@ -48,7 +48,7 @@ class ProductServiceTest {
 
         Page<Product> result = service.search(request, 1, 10);
 
-        assertEquals(6L, result.getTotal());
-        assertEquals(2, result.getRecords().size());
+        assertEquals(5L, result.getTotal());
+        assertEquals(1, result.getRecords().size());
     }
 }

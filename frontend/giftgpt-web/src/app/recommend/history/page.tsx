@@ -7,11 +7,7 @@ import { Loading } from '@/components/Loading';
 import { Gift, ChevronLeft, Calendar, Wallet, Pencil, Trash2, CheckSquare, X } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'react-hot-toast';
-
-const OCCASION_LABELS: Record<string, string> = {
-  birthday: '生日', anniversary: '纪念日', valentines: '情人节',
-  festival: '节庆', graduation: '毕业', proposal: '求婚', thank_you: '感谢', other: '其他',
-};
+import { OCCASION_LABELS } from '@/lib/occasions';
 
 export default function HistoryPage() {
   const [records, setRecords] = useState<any[]>([]);
@@ -100,7 +96,9 @@ export default function HistoryPage() {
                   price={item.price} imageUrl={item.imageUrl} platform={item.platform}
                   platformUrl={item.platformUrl}
                   reason={item.reason} matchTags={item.matchTags} score={item.score}
-                  reasoningChain={item.reasoningChain} />
+                  reasoningChain={item.reasoningChain} source={item.source}
+                  scoreFactors={item.scoreFactors}
+                  recipientName={detail.recipientName} recipientId={detail.recipientId} occasion={detail.occasion} />
               ))}
             </div>
           ) : (

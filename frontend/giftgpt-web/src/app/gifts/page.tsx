@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 import { giftApi, recipientApi } from '@/lib/api';
 import { GiftRecord } from '@/types';
 import { Loading } from '@/components/Loading';
 import Link from 'next/link';
 import { toast } from 'react-hot-toast';
+import { OCCASIONS, OCCASION_LABELS } from '@/lib/occasions';
 
 const STATUS_MAP: Record<string, string> = {
   draft: '草稿', recommended: '已推荐', ordered: '已下单', shipped: '已发货', delivered: '已送达',
@@ -19,19 +20,23 @@ export default function GiftsPage() {
   const [fOccasion, setFOccasion] = useState('');
   const [fStatus, setFStatus] = useState('');
 
-  const loadGifts = () => {
+  const loadGifts = useCallback(() => {
     setLoading(true);
     giftApi.list({
       recipientId: fRecipientId ? Number(fRecipientId) : undefined,
       occasion: fOccasion || undefined,
       status: fStatus || undefined,
     }).then(d => { setGifts(d.records || []); setLoading(false); }).catch((err: any) => { setGifts([]); setLoading(false); toast.error(err?.message || '加载送礼记录失败'); });
-  };
+  }, [fRecipientId, fOccasion, fStatus]);
 
   useEffect(() => {
-    recipientApi.list(1, 100).then(d => setRecipients(d.records || [])).catch(() => {});
-    loadGifts();
+    recipientApi.list(1, 100).then(d => setRecipients(d.records || []))
+      .catch((error: Error) => toast.error(error.message || '加载收礼人失败'));
   }, []);
+
+  useEffect(() => {
+    loadGifts();
+  }, [loadGifts]);
 
   if (loading) return <Loading />;
 
@@ -52,14 +57,7 @@ export default function GiftsPage() {
             <label className="block text-xs font-medium text-gray-500 mb-1">场景</label>
             <select className="input-field" value={fOccasion} onChange={e => setFOccasion(e.target.value)}>
               <option value="">全部</option>
-              <option value="birthday">生日</option>
-              <option value="anniversary">纪念日</option>
-              <option value="valentines">情人节</option>
-              <option value="festival">节庆</option>
-              <option value="graduation">毕业</option>
-              <option value="proposal">求婚</option>
-              <option value="thank_you">感谢</option>
-              <option value="other">其他</option>
+              {OCCASIONS.map(item => <option key={item.value} value={item.value}>{item.label}</option>)}
             </select>
           </div>
           <div>
@@ -85,7 +83,7 @@ export default function GiftsPage() {
           {gifts.map(g => (
             <Link key={g.id} href={`/gifts/${g.id}`} className="card flex items-center justify-between hover:shadow-md transition-all">
               <div>
-                <span className="font-medium text-gray-800 dark:text-gray-100">{g.occasion} · 预算¥{g.budget}</span>
+                <span className="font-medium text-gray-800 dark:text-gray-100">{OCCASION_LABELS[g.occasion] || g.occasion} · 预算¥{g.budget}</span>
               </div>
               <span className="tag">{STATUS_MAP[g.status] || g.status}</span>
             </Link>

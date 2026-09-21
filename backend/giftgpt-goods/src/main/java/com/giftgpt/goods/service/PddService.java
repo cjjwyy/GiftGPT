@@ -29,7 +29,7 @@ import java.util.*;
  */
 @Slf4j
 @Service
-public class PddService {
+public class PddService implements ProductSearchProvider {
 
     @Value("${giftgpt.commerce.pinduoduo.client-id:}")
     private String clientId;
@@ -51,6 +51,16 @@ public class PddService {
     public boolean isConfigured() {
         return clientId != null && !clientId.isBlank()
                 && clientSecret != null && !clientSecret.isBlank();
+    }
+
+    @Override
+    public String platformName() {
+        return "拼多多";
+    }
+
+    @Override
+    public List<Product> search(String keyword, int page, int size) {
+        return searchGoods(keyword, page, size);
     }
 
     /** Generate (or reuse) a single PID used for both authority and search. Persisted to data/pdd_pid.txt so it survives restarts. */
@@ -317,17 +327,31 @@ public class PddService {
         conn.setRequestMethod("POST");
         conn.setDoOutput(true);
         conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded;charset=UTF-8");
-        conn.setConnectTimeout(10000);
-        conn.setReadTimeout(15000);
-        conn.getOutputStream().write(body);
+        conn.setConnectTimeout(5000);
+        conn.setReadTimeout(10000);
+        try {
+            try (java.io.OutputStream os = conn.getOutputStream()) {
+                os.write(body);
+            }
 
-        int code = conn.getResponseCode();
-        if (code == 200) {
-            return new String(conn.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+            int code = conn.getResponseCode();
+            java.io.InputStream stream = code == 200 ? conn.getInputStream() : conn.getErrorStream();
+            String response;
+            if (stream == null) {
+                response = "";
+            } else {
+                try (java.io.InputStream in = stream) {
+                    response = new String(in.readAllBytes(), StandardCharsets.UTF_8);
+                }
+            }
+            if (code == 200) {
+                return response;
+            }
+            log.warn("Pinduoduo HTTP {}: {}", code, abbreviate(response, 300));
+            throw new RuntimeException("Pinduoduo HTTP " + code);
+        } finally {
+            conn.disconnect();
         }
-        String err = new String(conn.getErrorStream().readAllBytes(), StandardCharsets.UTF_8);
-        log.warn("Pinduoduo HTTP {}: {}", code, err);
-        throw new RuntimeException("Pinduoduo HTTP " + code);
     }
 
     private void parseResponse(String body, List<Product> products) throws Exception {
@@ -353,7 +377,9 @@ public class PddService {
         for (JsonNode item : goodsList) {
             Product p = new Product();
             p.setName(optText(item, "goods_name"));
-            long priceInCents = item.get("min_group_price").asLong(0);
+            JsonNode priceNode = item.get("min_group_price");
+            long priceInCents = priceNode == null || priceNode.isNull() ? 0 : priceNode.asLong(0);
+            if (priceInCents <= 0) continue;
             p.setPrice(BigDecimal.valueOf(priceInCents).divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP));
             p.setPlatform("拼多多");
             String goodsId = optText(item, "goods_id");
@@ -370,7 +396,7 @@ public class PddService {
             p.setImageUrl(optText(item, "goods_thumbnail_url"));
             p.setCategory(optText(item, "opt_name"));
             p.setDescription(optText(item, "goods_desc"));
-            p.setSalesCount(parseInt(optText(item, "sales_tip")));
+            p.setSalesCount(parseSalesCount(optText(item, "sales_tip")));
             p.setStatus(1);
             products.add(p);
         }
@@ -382,12 +408,32 @@ public class PddService {
         return n != null && !n.isNull() ? n.asText() : "";
     }
 
-    private int parseInt(String s) {
-        if (s == null || s.isEmpty()) return 0;
+    int parseSalesCount(String text) {
+        if (text == null || text.isBlank()) return 0;
+        String value = text.trim().replace(",", "").replace("+", "");
         try {
-            return Integer.parseInt(s);
+            double multiplier = 1;
+            if (value.endsWith("万")) {
+                multiplier = 10_000;
+                value = value.substring(0, value.length() - 1);
+            } else if (value.endsWith("千")) {
+                multiplier = 1_000;
+                value = value.substring(0, value.length() - 1);
+            } else if (value.endsWith("亿")) {
+                multiplier = 100_000_000;
+                value = value.substring(0, value.length() - 1);
+            }
+            value = value.replaceAll("[^0-9.]", "");
+            if (value.isEmpty()) return 0;
+            double parsed = Double.parseDouble(value) * multiplier;
+            return parsed >= Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) parsed;
         } catch (NumberFormatException e) {
             return 0;
         }
+    }
+
+    private String abbreviate(String value, int maxLength) {
+        if (value == null || value.length() <= maxLength) return value;
+        return value.substring(0, maxLength) + "...";
     }
 }

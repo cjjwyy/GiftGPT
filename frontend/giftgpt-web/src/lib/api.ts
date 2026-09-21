@@ -9,6 +9,8 @@ export function setToken(token: string | null) {
       localStorage.setItem('token', token);
     } else {
       localStorage.removeItem('token');
+      sessionStorage.removeItem('lastRecommendation');
+      sessionStorage.removeItem('lastProductSearch');
     }
   }
 }
@@ -32,15 +34,31 @@ async function request<T>(
   options: RequestInit = {}
 ): Promise<T> {
   const token = getToken();
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    ...(options.headers as Record<string, string> || {}),
-  };
+  const headers = new Headers(options.headers);
+  if (!(options.body instanceof FormData) && !headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json');
+  }
   if (token) {
-    headers['Authorization'] = token;
+    headers.set('Authorization', token);
   }
 
-  const res = await fetch(API_BASE + path, { ...options, headers });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 30000);
+  if (options.signal) {
+    if (options.signal.aborted) controller.abort();
+    options.signal.addEventListener('abort', () => controller.abort(), { once: true });
+  }
+  let res: Response;
+  try {
+    res = await fetch(API_BASE + path, { ...options, headers, signal: controller.signal });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      throw new Error('请求超时，请检查网络后重试');
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
   const text = await res.text();
   let json: ApiResponse<T>;
   try { json = JSON.parse(text); } catch {
@@ -105,6 +123,15 @@ export const recommendApi = {
       method: 'POST',
       body: JSON.stringify({ feedback }),
     }),
+  trackEvent: (data: {
+    recipientId?: number;
+    occasion?: string;
+    productId?: number;
+    productName?: string;
+    eventType: 'detail' | 'buy' | 'packaging';
+  }) => request<void>('/recommendations/events', {
+    method: 'POST', body: JSON.stringify(data),
+  }),
 };
 
 // Products
@@ -136,6 +163,21 @@ export const giftApi = {
   feedback: (id: number, data: any) =>
     request<any>(`/gifts/${id}/feedback`, { method: 'POST', body: JSON.stringify(data) }),
   feedbackList: (id: number) => request<any[]>(`/gifts/${id}/feedback`),
+  feedbackLink: (id: number) => request<{ url: string; qrCodeUrl?: string; expiresAt: string }>(`/gifts/${id}/feedback-link`, { method: 'POST' }),
+  greeting: (id: number) => request<any>(`/gifts/${id}/greeting`),
+  uploadVoice: (id: number, file: Blob) => {
+    const form = new FormData();
+    form.append('file', file, 'greeting.webm');
+    return request<any>(`/gifts/${id}/greeting/voice`, { method: 'POST', body: form });
+  },
+};
+
+export const publicFeedbackApi = {
+  get: (token: string) => request<any>(`/public/feedback/${encodeURIComponent(token)}`),
+  submit: (token: string, data: { content: string; type?: string; isPublic?: number }) =>
+    request<any>(`/public/feedback/${encodeURIComponent(token)}`, {
+      method: 'POST', body: JSON.stringify(data),
+    }),
 };
 
 // Greetings
@@ -150,13 +192,14 @@ export const greetingApi = {
 
 // Stories
 export const storyApi = {
+  delete: (id: number) => request<void>(`/stories/${id}`, { method: 'DELETE' }),
   list: (page = 1, size = 10) =>
     request<any>(`/stories?page=${page}&size=${size}`),
   create: (data: { title: string; content: string; giftRecordId?: number; isAnonymous?: number }) =>
     request<any>('/stories', { method: 'POST', body: JSON.stringify(data) }),
   like: (id: number) => request<any>(`/stories/${id}/like`, { method: 'POST' }),
   unlike: (id: number) => request<any>(`/stories/${id}/unlike`, { method: 'POST' }),
-  getReplies: (storyId: number) => request<any>(`/stories/${storyId}/replies`),
+  getReplies: (storyId: number, page = 1) => request<any>(`/stories/${storyId}/replies?page=${page}&size=20`),
   addReply: (storyId: number, data: { content: string }) =>
     request<any>(`/stories/${storyId}/replies`, { method: 'POST', body: JSON.stringify(data) }),
 };
@@ -173,6 +216,15 @@ export const calendarApi = {
     request<void>(`/calendar/${id}`, { method: 'DELETE' }),
 };
 
+export const notificationApi = {
+  list: (page = 1, size = 20, unreadOnly = false) =>
+    request<any>(`/notifications?page=${page}&size=${size}&unreadOnly=${unreadOnly}`),
+  unreadCount: () => request<number>('/notifications/unread-count'),
+  markRead: (id: number) => request<void>(`/notifications/${id}/read`, { method: 'POST' }),
+  markAllRead: () => request<void>('/notifications/read-all', { method: 'POST' }),
+  checkNow: () => request<number>('/notifications/check-now', { method: 'POST' }),
+};
+
 // Enterprise
 export const enterpriseApi = {
   register: (data: any) =>
@@ -184,6 +236,7 @@ export const enterpriseApi = {
 
 // Packaging
 export const packagingApi = {
+  addonPrices: () => request<Record<string, number>>('/packaging/addon-prices'),
   themes: () => request<any[]>('/packaging/themes'),
   aiRecommend: (data: any) =>
     request<any>('/packaging/ai-recommend', { method: 'POST', body: JSON.stringify(data) }),
@@ -191,4 +244,8 @@ export const packagingApi = {
     request<any>('/packaging/save', { method: 'POST', body: JSON.stringify(data) }),
   list: (page = 1, size = 10) =>
     request<any>(`/packaging/list?page=${page}&size=${size}`),
+};
+
+export const aiMetricsApi = {
+  get: () => request<any>('/ai/metrics'),
 };

@@ -5,6 +5,7 @@ import { productApi } from '@/lib/api';
 import { useParams } from 'next/navigation';
 import { Loading } from '@/components/Loading';
 import Link from 'next/link';
+import Image from 'next/image';
 import { Gift, ExternalLink, Star, ShoppingBag } from 'lucide-react';
 
 export default function ProductDetailPage() {
@@ -32,11 +33,14 @@ export default function ProductDetailPage() {
     <div className="max-w-4xl mx-auto px-4 py-10">
       <div className="card grid grid-cols-1 md:grid-cols-2 gap-8">
         {/* Product image */}
-        <div className="aspect-square bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 rounded-2xl flex items-center justify-center overflow-hidden">
+        <div className="aspect-square relative bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 rounded-2xl flex items-center justify-center overflow-hidden">
           {product.imageUrl && !imgError ? (
-            <img
+            <Image
               src={product.imageUrl}
               alt={product.name}
+              fill
+              sizes="(max-width: 768px) 100vw, 50vw"
+              unoptimized
               referrerPolicy="no-referrer"
               className="w-full h-full object-cover"
               onError={() => setImgError(true)}

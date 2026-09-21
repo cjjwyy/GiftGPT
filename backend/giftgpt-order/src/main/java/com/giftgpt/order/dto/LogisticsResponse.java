@@ -9,6 +9,7 @@ public class LogisticsResponse {
     private String status;
     private String logisticsNo;
     private String logisticsCompany;
+    private Boolean simulated;
     private List<Event> events;
 
     @Data
@@ -17,5 +18,6 @@ public class LogisticsResponse {
         private String location;
         private String status;
         private String description;
+        private String source;
     }
 }

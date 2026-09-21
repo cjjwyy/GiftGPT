@@ -30,6 +30,7 @@ import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -69,14 +70,28 @@ public class KnowledgeGraphService {
         return enabled && driver != null;
     }
 
+    public boolean isTaxonomyLoaded() {
+        return taxonomy != null;
+    }
+
     @EventListener(ApplicationReadyEvent.class)
     public void init() {
+        try {
+            // taxonomy 同时用于 LLM prompt；即使 Neo4j 未启用也必须加载。
+            loadTaxonomy();
+        } catch (Exception e) {
+            log.warn("Taxonomy load failed, taxonomy context will be skipped: {}", e.getMessage());
+            taxonomy = null;
+        }
         if (!enabled) {
-            log.info("KG disabled (giftgpt.kg.enabled=false), skipping Neo4j init");
+            log.info("KG disabled (giftgpt.kg.enabled=false), taxonomy context remains available");
+            return;
+        }
+        if (taxonomy == null) {
+            log.warn("KG enabled but taxonomy is unavailable, skipping Neo4j init");
             return;
         }
         try {
-            loadTaxonomy();
             driver = GraphDatabase.driver(uri, AuthTokens.basic(user, password));
             driver.verifyConnectivity();
             log.info("Neo4j connected: {}", uri);
@@ -98,14 +113,18 @@ public class KnowledgeGraphService {
     }
 
     private void loadTaxonomy() throws Exception {
-        InputStream is;
-        if (taxonomyFile.startsWith("classpath:")) {
-            is = new ClassPathResource(taxonomyFile.substring("classpath:".length())).getInputStream();
-        } else {
-            is = new java.io.FileInputStream(taxonomyFile);
+        optNameToCategoryId.clear();
+        categoryIdToName.clear();
+        occasionCodeToName.clear();
+
+        try (InputStream is = taxonomyFile.startsWith("classpath:")
+                ? new ClassPathResource(taxonomyFile.substring("classpath:".length())).getInputStream()
+                : new java.io.FileInputStream(taxonomyFile)) {
+            taxonomy = objectMapper.readTree(is);
         }
-        taxonomy = objectMapper.readTree(is);
-        is.close();
+        if (taxonomy == null || !taxonomy.isObject()) {
+            throw new IllegalArgumentException("taxonomy root must be a JSON object");
+        }
 
         for (JsonNode cat : taxonomy.path("standard_categories")) {
             categoryIdToName.put(cat.get("id").asText(), cat.get("name").asText());
@@ -123,6 +142,25 @@ public class KnowledgeGraphService {
                 categoryIdToName.size(), optNameToCategoryId.size(), occasionCodeToName.size());
     }
 
+    /** 返回标签 → 品类中文名列表，供 LLM prompt 注入。taxonomy 未加载时返回空。 */
+    public Map<String, List<String>> getTagCategoryNames(List<String> tags) {
+        Map<String, List<String>> result = new LinkedHashMap<>();
+        if (taxonomy == null || tags == null) return result;
+        JsonNode tagToCats = taxonomy.path("tag_to_categories");
+        for (String tag : tags) {
+            JsonNode catIds = tagToCats.get(tag);
+            if (catIds == null || !catIds.isArray()) continue;
+            List<String> names = new ArrayList<>();
+            for (JsonNode target : catIds) {
+                String categoryId = relationTarget(target, "categoryId", "id");
+                String n = categoryIdToName.get(categoryId);
+                if (n != null) names.add(n);
+            }
+            if (!names.isEmpty()) result.put(tag, names);
+        }
+        return result;
+    }
+
     private void buildSchema() {
         try (Session session = driver.session()) {
             session.run("CREATE CONSTRAINT IF NOT EXISTS FOR (r:Recipient) REQUIRE r.id IS UNIQUE");
@@ -135,11 +173,20 @@ public class KnowledgeGraphService {
     }
 
     private void syncDataAndBuildGraph() {
+        clearManagedGraph();
         createCategoryAndOccasionNodes();
         buildTagCategoryRelations();
         buildCategoryOccasionRelations();
         syncRecipients();
         syncProducts();
+    }
+
+    /** 重建前清理仅由 taxonomy + H2 派生的受管节点，避免旧关系残留。 */
+    private void clearManagedGraph() {
+        try (Session session = driver.session()) {
+            session.run("MATCH (n) WHERE n:Recipient OR n:Tag OR n:Category OR n:Product OR n:Occasion DETACH DELETE n");
+        }
+        log.info("Cleared managed KG nodes before exact rebuild");
     }
 
     private void createCategoryAndOccasionNodes() {
@@ -161,12 +208,16 @@ public class KnowledgeGraphService {
         try (Session session = driver.session()) {
             for (Map.Entry<String, JsonNode> entry : fieldsToList(taxonomy.path("tag_to_categories"))) {
                 String tagName = entry.getKey();
-                for (JsonNode catId : entry.getValue()) {
+                for (JsonNode target : entry.getValue()) {
+                    String categoryId = relationTarget(target, "categoryId", "id");
+                    if (categoryId == null || categoryId.isBlank()) continue;
+                    double weight = relationWeight(target);
                     session.run(
                         "MERGE (t:Tag {name: $tagName}) " +
                         "MERGE (c:Category {id: $catId}) " +
-                        "MERGE (t)-[:PREFERS_CATEGORY]->(c)",
-                        Map.of("tagName", tagName, "catId", catId.asText()));
+                        "MERGE (t)-[r:PREFERS_CATEGORY]->(c) " +
+                        "SET r.weight = $weight",
+                        Map.of("tagName", tagName, "catId", categoryId, "weight", weight));
                 }
             }
         }
@@ -177,12 +228,16 @@ public class KnowledgeGraphService {
         try (Session session = driver.session()) {
             for (Map.Entry<String, JsonNode> entry : fieldsToList(taxonomy.path("category_to_occasions"))) {
                 String catId = entry.getKey();
-                for (JsonNode occCode : entry.getValue()) {
+                for (JsonNode target : entry.getValue()) {
+                    String occasionCode = relationTarget(target, "occasionCode", "code", "id");
+                    if (occasionCode == null || occasionCode.isBlank()) continue;
+                    double weight = relationWeight(target);
                     session.run(
                         "MERGE (c:Category {id: $catId}) " +
                         "MERGE (o:Occasion {code: $occCode}) " +
-                        "MERGE (c)-[:FIT_OCCASION]->(o)",
-                        Map.of("catId", catId, "occCode", occCode.asText()));
+                        "MERGE (c)-[r:FIT_OCCASION]->(o) " +
+                        "SET r.weight = $weight",
+                        Map.of("catId", catId, "occCode", occasionCode, "weight", weight));
                 }
             }
         }
@@ -197,7 +252,7 @@ public class KnowledgeGraphService {
                     "MERGE (r:Recipient {id: $id}) " +
                     "SET r.name = $name, r.mbti = $mbti, r.gender = $gender, r.relation = $relation",
                     Map.of("id", r.getId(), "name", nullSafe(r.getName()),
-                           "mbti", nullSafe(r.getMbti()), "gender", r.getGender(),
+                           "mbti", nullSafe(r.getMbti()), "gender", r.getGender() == null ? 0 : r.getGender(),
                            "relation", nullSafe(r.getRelation())));
 
                 List<RecipientTag> tags = recipientTagMapper.selectList(
@@ -226,7 +281,7 @@ public class KnowledgeGraphService {
                 session.run(
                     "MERGE (p:Product {id: $id}) " +
                     "SET p.name = $name, p.price = $price, p.platform = $platform, " +
-                    "p.imageUrl = $imageUrl, p.salesCount = $salesCount " +
+                    "p.imageUrl = $imageUrl, p.platformUrl = $platformUrl, p.salesCount = $salesCount " +
                     "WITH p " +
                     "MERGE (c:Category {id: $catId}) " +
                     "MERGE (p)-[:BELONGS_TO]->(c)",
@@ -235,6 +290,7 @@ public class KnowledgeGraphService {
                            "price", p.getPrice() != null ? p.getPrice().doubleValue() : 0.0,
                            "platform", nullSafe(p.getPlatform()),
                            "imageUrl", nullSafe(p.getImageUrl()),
+                           "platformUrl", nullSafe(p.getPlatformUrl()),
                            "salesCount", p.getSalesCount() != null ? p.getSalesCount() : 0,
                            "catId", categoryId));
                 linked++;
@@ -269,17 +325,18 @@ public class KnowledgeGraphService {
         double budgetMinVal = budgetMaxVal * 0.6;
 
         String cypher =
-            "MATCH (r:Recipient {id: $recipientId})-[:HAS_TAG]->(t:Tag)-[:PREFERS_CATEGORY]->(c:Category) " +
+            "MATCH (r:Recipient {id: $recipientId})-[:HAS_TAG]->(t:Tag)-[pc:PREFERS_CATEGORY]->(c:Category) " +
             "MATCH (p:Product)-[:BELONGS_TO]->(c) " +
-            "MATCH (c)-[:FIT_OCCASION]->(o:Occasion {code: $occasion}) " +
+            "MATCH (c)-[fo:FIT_OCCASION]->(o:Occasion {code: $occasion}) " +
             "WHERE p.price >= $budgetMin AND p.price <= $budgetMax " +
-            "WITH p, c, collect(DISTINCT t.name) AS matchedTags, count(DISTINCT t) AS tagScore " +
-            "ORDER BY tagScore DESC, p.salesCount DESC " +
+            "WITH p, c, collect(DISTINCT t.name) AS matchedTags, " +
+            "sum(coalesce(pc.weight, 1.0)) * max(coalesce(fo.weight, 1.0)) AS graphScore " +
+            "ORDER BY graphScore DESC, p.salesCount DESC " +
             "LIMIT 8 " +
             "RETURN p.id AS productId, p.name AS productName, p.price AS price, " +
-            "p.imageUrl AS imageUrl, p.platform AS platform, " +
+            "p.imageUrl AS imageUrl, p.platform AS platform, p.platformUrl AS platformUrl, " +
             "p.salesCount AS salesCount, " +
-            "matchedTags, tagScore, " +
+            "matchedTags, graphScore, " +
             "c.name AS categoryName";
 
         List<RecommendItem> items = new ArrayList<>();
@@ -298,8 +355,11 @@ public class KnowledgeGraphService {
                 item.setPrice(BigDecimal.valueOf(record.get("price").asDouble()));
                 item.setImageUrl(record.get("imageUrl").isNull() ? "" : record.get("imageUrl").asString());
                 item.setPlatform(record.get("platform").isNull() ? "\u62fc\u591a\u591a" : record.get("platform").asString());
-                item.setPlatformUrl("");
-                item.setScore(0.85 + Math.min(record.get("tagScore").asInt() * 0.05, 0.15));
+                item.setPlatformUrl(record.get("platformUrl").isNull() ? "" : record.get("platformUrl").asString());
+                double graphScore = record.get("graphScore").asDouble(1.0);
+                item.setScore(Math.min(0.99, 0.70 + Math.log1p(graphScore) / 12.0));
+                item.setKeywordWeight(graphScore);
+                item.setSource("kg");
 
                 List<String> matchedTags = new ArrayList<>();
                 record.get("matchedTags").asList().forEach(v -> matchedTags.add((String) v));
@@ -329,6 +389,9 @@ public class KnowledgeGraphService {
     public void resyncProducts() {
         if (!isEnabled()) return;
         try {
+            try (Session session = driver.session()) {
+                session.run("MATCH (p:Product) DETACH DELETE p");
+            }
             syncProducts();
         } catch (Exception e) {
             log.warn("KG product re-sync failed: {}", e.getMessage());
@@ -360,17 +423,28 @@ public class KnowledgeGraphService {
         }
     }
 
-    /**
-     * Load Neo4j from a specific taxonomy file path (override config-via-file).
-     * Used by REST endpoint to edit taxonomy without restarting backend.
-     */
-    public Map<String, Object> rebuildFromFilePath(String filePath) {
-        this.taxonomyFile = filePath;
-        return rebuildGraph();
-    }
-
     private String nullSafe(String s) {
         return s != null ? s : "";
+    }
+
+    /** 同时兼容旧字符串条目与新 {id/categoryId/occasionCode, weight} 条目。 */
+    private String relationTarget(JsonNode node, String... keys) {
+        if (node == null || node.isNull()) return null;
+        if (node.isTextual() || node.isNumber()) return node.asText();
+        for (String key : keys) {
+            JsonNode value = node.get(key);
+            if (value != null && !value.isNull() && !value.asText().isBlank()) {
+                return value.asText();
+            }
+        }
+        return null;
+    }
+
+    private double relationWeight(JsonNode node) {
+        if (node == null || !node.isObject()) return 1.0;
+        JsonNode weight = node.get("weight");
+        if (weight == null || !weight.isNumber()) return 1.0;
+        return Math.max(1.0, weight.asDouble());
     }
 
     private static List<Map.Entry<String, JsonNode>> fieldsToList(JsonNode node) {

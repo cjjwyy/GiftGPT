@@ -4,6 +4,7 @@ import lombok.Data;
 
 @Data
 public class AiPackagingResult {
+    private boolean aiGenerated;
     private String packagingType;
     private String ribbonText;
     private String ribbonColor;

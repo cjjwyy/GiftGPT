@@ -9,4 +9,6 @@ public class AiGiftsResponse {
 
     private List<AiGift> gifts;
     private String summary;
+    private Boolean aiGenerated;
+    private Boolean fallbackUsed;
 }

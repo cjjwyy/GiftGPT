@@ -1,6 +1,6 @@
 package com.giftgpt.order.dto;
 
-import javax.validation.constraints.NotNull;
+import javax.validation.constraints.Size;
 import lombok.Data;
 
 import java.math.BigDecimal;
@@ -8,12 +8,12 @@ import java.math.BigDecimal;
 @Data
 public class CreateOrderRequest {
 
-    @NotNull(message = "送礼记录ID不能为空")
     private Long giftRecordId;
 
     private Long packagingThemeId;
 
     private String greetingStyle;
 
+    @Size(max = 200, message = "定制文案不能超过200个字符")
     private String customMessage;
 }

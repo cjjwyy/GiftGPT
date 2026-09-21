@@ -3,9 +3,11 @@ package com.giftgpt.recommendation.controller;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.giftgpt.common.result.Result;
 import com.giftgpt.recommendation.dto.AiGiftsResponse;
+import com.giftgpt.recommendation.dto.AnalyzeRequest;
 import com.giftgpt.recommendation.dto.MatchRequest;
 import com.giftgpt.recommendation.dto.PersonalitySnapshot;
 import com.giftgpt.recommendation.dto.RecommendFeedbackRequest;
+import com.giftgpt.recommendation.dto.RecommendEventRequest;
 import com.giftgpt.recommendation.dto.RecommendRequest;
 import com.giftgpt.recommendation.dto.RecommendResponse;
 import com.giftgpt.recommendation.entity.RecommendationHistory;
@@ -35,8 +37,8 @@ public class RecommendationController {
 
     @Operation(summary = "第一步：分析收礼人性格")
     @PostMapping("/analyze")
-    public Result<PersonalitySnapshot> analyze(@RequestBody Map<String, Long> body) {
-        return Result.ok(recommendationService.analyze(body.get("recipientId")));
+    public Result<PersonalitySnapshot> analyze(@Valid @RequestBody AnalyzeRequest request) {
+        return Result.ok(recommendationService.analyze(request.getRecipientId()));
     }
 
     @Operation(summary = "第二步：AI 智能判断合适礼物")
@@ -47,7 +49,7 @@ public class RecommendationController {
 
     @Operation(summary = "第三步：在各大购物平台搜索并生成最终推荐")
     @PostMapping("/match")
-    public Result<RecommendResponse> match(@RequestBody MatchRequest request) {
+    public Result<RecommendResponse> match(@Valid @RequestBody MatchRequest request) {
         return Result.ok(recommendationService.matchAndSearch(request));
     }
 
@@ -67,7 +69,7 @@ public class RecommendationController {
 
     @Operation(summary = "推荐反馈")
     @PostMapping("/{id}/feedback")
-    public Result<Void> feedback(@PathVariable Long id, @RequestBody RecommendFeedbackRequest request) {
+    public Result<Void> feedback(@PathVariable Long id, @Valid @RequestBody RecommendFeedbackRequest request) {
         recommendationService.feedback(id, request);
         return Result.ok();
     }
@@ -76,6 +78,13 @@ public class RecommendationController {
     @DeleteMapping("/history")
     public Result<Void> deleteHistory(@RequestBody Map<String, List<Long>> body) {
         recommendationService.deleteHistories(body.get("ids"));
+        return Result.ok();
+    }
+
+    @Operation(summary = "记录推荐卡片点击事件")
+    @PostMapping("/events")
+    public Result<Void> trackEvent(@Valid @RequestBody RecommendEventRequest request) {
+        recommendationService.trackEvent(request);
         return Result.ok();
     }
 }

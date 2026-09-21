@@ -6,6 +6,7 @@ import { Product } from '@/types';
 import { Loading } from '@/components/Loading';
 import { Search, Gift, Package } from 'lucide-react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { toast } from 'react-hot-toast';
 
 export default function ProductsPage() {
@@ -24,7 +25,8 @@ export default function ProductsPage() {
         return;
       } catch {}
     }
-    productApi.search({ keyword: '礼物' }).then(d => { setProducts(d.records || []); setLoading(false); }).catch(() => setLoading(false));
+    productApi.search({ keyword: '礼物' }).then(d => { setProducts(d.records || []); setLoading(false); })
+      .catch((error: Error) => { setLoading(false); toast.error(error.message || '加载商品失败'); });
   }, []);
 
   const onSearch = async () => {
@@ -81,12 +83,15 @@ function ProductCard({ product }: { product: Product }) {
   const [imgError, setImgError] = useState(false);
 
   return (
-    <Link href={`/products/${product.id}`} className="card hover:shadow-md transition-all group">
-      <div className="aspect-square bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 rounded-xl mb-3 flex items-center justify-center overflow-hidden">
+    <article className="card hover:shadow-md transition-all group">
+      <Link href={`/products/${product.id}`} className="block relative aspect-square bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 rounded-xl mb-3 flex items-center justify-center overflow-hidden">
         {product.imageUrl && !imgError ? (
-          <img
+          <Image
             src={product.imageUrl}
             alt={product.name}
+            fill
+            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+            unoptimized
             referrerPolicy="no-referrer"
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
             onError={() => setImgError(true)}
@@ -94,7 +99,7 @@ function ProductCard({ product }: { product: Product }) {
         ) : (
           <Gift className="w-12 h-12 text-gray-300 dark:text-gray-600" />
         )}
-      </div>
+      </Link>
 
       {product.category && (
         <span className="text-xs bg-primary-50 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400 px-2 py-0.5 rounded-full mb-2 inline-block">
@@ -102,7 +107,9 @@ function ProductCard({ product }: { product: Product }) {
         </span>
       )}
 
-      <h3 className="font-semibold text-gray-800 dark:text-gray-100 mb-1 line-clamp-2">{product.name}</h3>
+      <h3 className="font-semibold text-gray-800 dark:text-gray-100 mb-1 line-clamp-2">
+        <Link href={`/products/${product.id}`} className="hover:text-primary-600">{product.name}</Link>
+      </h3>
 
       {product.description && (
         <p className="text-xs text-gray-400 dark:text-gray-500 line-clamp-1 mb-2">{product.description}</p>
@@ -124,6 +131,6 @@ function ProductCard({ product }: { product: Product }) {
           {product.salesCount && product.salesCount > 0 && <span>已售 {product.salesCount.toLocaleString()}</span>}
         </div>
       )}
-    </Link>
+    </article>
   );
 }

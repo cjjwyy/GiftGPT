@@ -8,13 +8,7 @@ import { Loading } from '@/components/Loading';
 import { Sparkles, Check, Loader2, User, BrainCircuit, Search, History } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import Link from 'next/link';
-
-const OCCASIONS = [
-  { value: 'birthday', label: '生日' }, { value: 'anniversary', label: '纪念日' },
-  { value: 'valentines', label: '情人节' }, { value: 'festival', label: '节庆' },
-  { value: 'graduation', label: '毕业' }, { value: 'proposal', label: '求婚' },
-  { value: 'thank_you', label: '感谢' }, { value: 'other', label: '其他' },
-];
+import { OCCASIONS } from '@/lib/occasions';
 
 type StepStatus = 'pending' | 'active' | 'done';
 interface Step { key: string; label: string; desc: string; icon: any; status: StepStatus; }
@@ -29,7 +23,10 @@ function RecommendContent() {
   const searchParams = useSearchParams();
   const [recipients, setRecipients] = useState<any[]>([]);
   const [recipientId, setRecipientId] = useState(searchParams.get('recipientId') || '');
-  const [occasion, setOccasion] = useState('birthday');
+  const [occasion, setOccasion] = useState(() => {
+    const value = searchParams.get('occasion');
+    return OCCASIONS.some(o => o.value === value) ? value! : 'birthday';
+  });
   const [budget, setBudget] = useState('300');
   const [result, setResult] = useState<any>(null);
   const [steps, setSteps] = useState<Step[]>(INITIAL_STEPS);
@@ -51,6 +48,11 @@ function RecommendContent() {
 
   const onSearch = async () => {
     if (!recipientId) { toast.error('请选择一位收礼人'); return; }
+    const numericBudget = Number(budget);
+    if (!Number.isFinite(numericBudget) || numericBudget < 1 || numericBudget > 100000) {
+      toast.error('预算需在1到100000元之间');
+      return;
+    }
     setRunning(true);
     setResult(null);
     setAnalysis('');
@@ -65,7 +67,7 @@ function RecommendContent() {
 
       // Step 2: AI judges gifts
       setStep('ai', 'active');
-      const ai = await recommendApi.aiGifts({ recipientId: Number(recipientId), occasion, budget: Number(budget) });
+      const ai = await recommendApi.aiGifts({ recipientId: Number(recipientId), occasion, budget: numericBudget });
       setStep('ai', 'done');
 
       // Step 3: search platforms & assemble
@@ -73,9 +75,10 @@ function RecommendContent() {
       const final = await recommendApi.match({
         recipientId: Number(recipientId),
         occasion,
-        budget: Number(budget),
+        budget: numericBudget,
         gifts: ai?.gifts || [],
         summary: ai?.summary,
+        fallbackUsed: Boolean(ai?.fallbackUsed),
       });
       setStep('search', 'done');
       setResult(final);
@@ -112,7 +115,7 @@ function RecommendContent() {
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">场景</label>
             <select className="input-field" value={occasion} onChange={e => setOccasion(e.target.value)} disabled={running}>
-              {OCCASIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              {OCCASIONS.map(o => <option key={o.value} value={o.value}>{o.label} · {o.description}</option>)}
             </select>
           </div>
           <div>
@@ -160,6 +163,11 @@ function RecommendContent() {
           <div className="mb-6">
             <p className="text-lg font-medium text-gray-800 dark:text-gray-100 mb-1">为 {result.recipientName} 推荐的礼物</p>
             <p className="text-sm text-gray-500 dark:text-gray-400">{result.summary}</p>
+            {result.fallbackUsed && (
+              <p className="text-xs mt-2 rounded-lg bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 px-3 py-2">
+                AI 服务暂不可用，本次结果由本地标签与商品库生成，仍可正常查看和包装。
+              </p>
+            )}
           </div>
               {result.items?.length ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -169,6 +177,7 @@ function RecommendContent() {
                   platformUrl={item.platformUrl}
                   reason={item.reason} matchTags={item.matchTags} score={item.score}
                   reasoningChain={item.reasoningChain}
+                  source={item.source} scoreFactors={item.scoreFactors}
                   recipientName={result.recipientName} recipientId={result.recipientId} occasion={result.occasion} />
               ))}
             </div>

@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { recipientApi } from '@/lib/api';
 import { toast } from 'react-hot-toast';
 import TagPicker from '@/components/TagPicker';
-import { buildTagSupplements } from '@/lib/tagOptions';
+import { buildTagSupplements, RELATION_OPTIONS } from '@/lib/tagOptions';
 
 const MBTI_OPTIONS = [
   'INTJ', 'INTP', 'ENTJ', 'ENTP', 'INFJ', 'INFP', 'ENFJ', 'ENFP',
@@ -89,13 +89,7 @@ export default function NewRecipientPage() {
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">关系</label>
             <select className="input-field" value={relation} onChange={e => setRelation(e.target.value)}>
               <option value="">请选择</option>
-              <option value="恋人">恋人</option>
-              <option value="朋友">朋友</option>
-              <option value="家人">家人</option>
-              <option value="同事">同事</option>
-              <option value="同学">同学</option>
-              <option value="老师">老师</option>
-              <option value="其他">其他</option>
+              {RELATION_OPTIONS.map(item => <option key={item.value} value={item.value}>{item.label} · {item.description}</option>)}
             </select>
           </div>
           <div>

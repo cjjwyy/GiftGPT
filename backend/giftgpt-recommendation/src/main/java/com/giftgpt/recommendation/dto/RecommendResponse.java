@@ -14,4 +14,6 @@ public class RecommendResponse {
     private BigDecimal budget;
     private List<RecommendItem> items;
     private String summary;
+    private Boolean fallbackUsed;
+    private Boolean kgEnhanced;
 }

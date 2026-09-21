@@ -4,13 +4,15 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { useTheme } from '@/components/ThemeProvider';
-import { Gift, Menu, X, Sun, Moon } from 'lucide-react';
-import { useState } from 'react';
+import { Bell, Gift, Menu, X, Sun, Moon } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { notificationApi } from '@/lib/api';
 
 export function Navbar() {
   const { user, logout, isAuthenticated } = useAuth();
   const { theme, toggle } = useTheme();
   const [open, setOpen] = useState(false);
+  const [unread, setUnread] = useState(0);
   const pathname = usePathname();
 
   const links = [
@@ -21,6 +23,17 @@ export function Navbar() {
     { href: '/stories', label: '社区' },
     { href: '/calendar', label: '日历' },
   ];
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setUnread(0);
+      return;
+    }
+    const refresh = () => notificationApi.unreadCount().then(setUnread).catch(() => setUnread(0));
+    refresh();
+    const timer = setInterval(refresh, 30000);
+    return () => clearInterval(timer);
+  }, [isAuthenticated]);
 
   return (
     <nav className="sticky top-0 z-50 bg-white/75 dark:bg-gray-950/75 backdrop-blur-xl border-b border-gray-100/80 dark:border-gray-800/80">
@@ -47,6 +60,10 @@ export function Navbar() {
             </button>
             {isAuthenticated ? (
               <>
+                <Link href="/calendar#notifications" className="relative p-2 text-gray-500 hover:text-primary-600" title="礼物提醒">
+                  <Bell className="w-5 h-5" />
+                  {unread > 0 && <span className="absolute top-0 right-0 min-w-4 h-4 px-1 rounded-full bg-rose-500 text-white text-[10px] leading-4 text-center">{unread > 99 ? '99+' : unread}</span>}
+                </Link>
                 <Link href="/recipients" className="btn-ghost">我的画像</Link>
                 <Link href="/profile" className="btn-ghost">{user?.nickname}</Link>
                 <button onClick={logout} className="btn-outline text-sm py-1.5 px-4">退出</button>

@@ -10,6 +10,9 @@ import TagPicker from '@/components/TagPicker';
 import {
   buildTagSupplements,
   formatSupplementText,
+  canonicalTag,
+  canonicalRelation,
+  RELATION_OPTIONS,
 } from '@/lib/tagOptions';
 
 export default function RecipientDetailPage() {
@@ -28,13 +31,15 @@ export default function RecipientDetailPage() {
   useEffect(() => {
     recipientApi.get(id).then(d => {
       setDetail(d);
-      setName(d.name); setRelation(d.relation || ''); setTags(d.tags || []);
+      setName(d.name); setRelation(canonicalRelation(d.relation || ''));
+      setTags(Array.from(new Set<string>((d.tags || []).map(canonicalTag))));
       const loadedTexts: Record<string, string> = {};
       const loadedModes: Record<string, boolean> = {};
       const tagSupplements = d.tagSupplements || {};
       for (const [tag, items] of Object.entries(tagSupplements)) {
-        loadedTexts[tag] = formatSupplementText(items as string[]);
-        loadedModes[tag] = true;
+        const canonical = canonicalTag(tag);
+        loadedTexts[canonical] = [loadedTexts[canonical], formatSupplementText(items as string[])].filter(Boolean).join('、');
+        loadedModes[canonical] = true;
       }
       setSupplementTexts(loadedTexts);
       setSupplementModes(loadedModes);
@@ -81,6 +86,7 @@ export default function RecipientDetailPage() {
         tagSupplements: buildTagSupplements(tags, supplementModes, supplementTexts),
       });
       setEditing(false);
+      setDetail({ ...detail, name, relation, tags, tagSupplements: buildTagSupplements(tags, supplementModes, supplementTexts) });
       toast.success('已更新');
     } catch (err: any) { toast.error(err.message); }
   };
@@ -108,7 +114,11 @@ export default function RecipientDetailPage() {
         <div>
           <label className="text-sm text-gray-500 dark:text-gray-400">关系</label>
           {editing ? (
-            <input className="input-field mt-1" value={relation} onChange={e => setRelation(e.target.value)} />
+            <select className="input-field mt-1" value={relation} onChange={e => setRelation(e.target.value)}>
+              <option value="">请选择</option>
+              {relation && !RELATION_OPTIONS.some(item => item.value === relation) && <option value={relation}>{relation}（原有关系）</option>}
+              {RELATION_OPTIONS.map(item => <option key={item.value} value={item.value}>{item.label} · {item.description}</option>)}
+            </select>
           ) : (
             <p>{detail.relation || '-'}</p>
           )}

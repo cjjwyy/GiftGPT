@@ -2,6 +2,8 @@ package com.giftgpt.enterprise.controller;
 
 import com.giftgpt.common.result.Result;
 import com.giftgpt.enterprise.dto.BatchOrderRequest;
+import com.giftgpt.enterprise.dto.BatchOrderResponse;
+import com.giftgpt.enterprise.dto.EnterpriseRegisterRequest;
 import com.giftgpt.enterprise.entity.Enterprise;
 import com.giftgpt.enterprise.service.EnterpriseService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -20,8 +22,8 @@ public class EnterpriseController {
 
     @Operation(summary = "企业注册")
     @PostMapping("/register")
-    public Result<Enterprise> register(@RequestBody Enterprise enterprise) {
-        return Result.ok(enterpriseService.register(enterprise));
+    public Result<Enterprise> register(@Valid @RequestBody EnterpriseRegisterRequest request) {
+        return Result.ok(enterpriseService.register(request));
     }
 
     @Operation(summary = "查询企业信息")
@@ -38,7 +40,7 @@ public class EnterpriseController {
 
     @Operation(summary = "批量团购下单")
     @PostMapping("/orders/batch")
-    public Result<Object> batchOrder(@Valid @RequestBody BatchOrderRequest request) {
+    public Result<BatchOrderResponse> batchOrder(@Valid @RequestBody BatchOrderRequest request) {
         return Result.ok(enterpriseService.createBatchOrder(request));
     }
 }

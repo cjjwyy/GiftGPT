@@ -10,6 +10,7 @@ import com.giftgpt.order.entity.Packaging;
 import com.giftgpt.order.service.PackagingService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import javax.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
@@ -22,6 +23,10 @@ import java.util.List;
 public class PackagingController {
 
     private final PackagingService packagingService;
+    @GetMapping("/addon-prices")
+    public Result<java.util.Map<String, java.math.BigDecimal>> addonPrices() {
+        return Result.ok(packagingService.addonPrices());
+    }
 
     @Operation(summary = "获取包装方案列表")
     @GetMapping("/themes")
@@ -31,13 +36,13 @@ public class PackagingController {
 
     @Operation(summary = "AI智能推荐包装")
     @PostMapping("/ai-recommend")
-    public Result<AiPackagingResult> aiRecommend(@RequestBody AiPackagingRequest request) {
+    public Result<AiPackagingResult> aiRecommend(@Valid @RequestBody AiPackagingRequest request) {
         return Result.ok(packagingService.aiRecommend(request));
     }
 
     @Operation(summary = "保存包装方案")
     @PostMapping("/save")
-    public Result<Packaging> save(@RequestBody SavePackagingRequest request) {
+    public Result<Packaging> save(@Valid @RequestBody SavePackagingRequest request) {
         return Result.ok(packagingService.savePackaging(request));
     }
 

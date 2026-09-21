@@ -2,6 +2,7 @@
 
 import {
   TAG_OPTIONS,
+  TAG_DEFINITIONS,
   TAG_SUPPLEMENT_EXAMPLES,
 } from '@/lib/tagOptions';
 
@@ -40,6 +41,7 @@ export default function TagPicker({
             <button
               key={tag}
               type="button"
+              title={TAG_DEFINITIONS.find(item => item.value === tag)?.description}
               className={selectedTags.includes(tag) ? 'tag-selected' : 'tag cursor-pointer hover:bg-primary-100'}
               onClick={() => toggleTag(tag)}
             >

@@ -6,7 +6,9 @@ import com.giftgpt.common.result.ResultCode;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 @Slf4j
@@ -15,6 +17,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 public class SaTokenExceptionHandler {
 
     @ExceptionHandler(NotLoginException.class)
+    @ResponseStatus(HttpStatus.UNAUTHORIZED)
     public Result<Void> handleNotLogin(NotLoginException e) {
         log.warn("Not logged in: {}", e.getMessage());
         return Result.fail(ResultCode.UNAUTHORIZED.getCode(), "未登录或登录已过期，请先登录");

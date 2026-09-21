@@ -20,8 +20,9 @@ public class AuthService {
     private final UserMapper userMapper;
 
     public LoginResponse login(LoginRequest request) {
+        String phone = request.getPhone().trim();
         User user = userMapper.selectOne(
-                new LambdaQueryWrapper<User>().eq(User::getPhone, request.getPhone()));
+                new LambdaQueryWrapper<User>().eq(User::getPhone, phone));
         if (user == null) {
             throw new BusinessException(ResultCode.USER_NOT_FOUND);
         }
@@ -42,17 +43,19 @@ public class AuthService {
     }
 
     public LoginResponse register(RegisterRequest request) {
+        String phone = request.getPhone().trim();
         Long count = userMapper.selectCount(
-                new LambdaQueryWrapper<User>().eq(User::getPhone, request.getPhone()));
+                new LambdaQueryWrapper<User>().eq(User::getPhone, phone));
         if (count > 0) {
             throw new BusinessException(ResultCode.PHONE_EXISTS);
         }
         User user = new User();
-        user.setPhone(request.getPhone());
+        user.setPhone(phone);
         user.setPasswordHash(BCrypt.hashpw(request.getPassword()));
         String defaultNickname = "用户" +
-                (request.getPhone().length() >= 8 ? request.getPhone().substring(request.getPhone().length() - 4) : request.getPhone());
-        user.setNickname(request.getNickname() != null ? request.getNickname() : defaultNickname);
+                phone.substring(phone.length() - 4);
+        user.setNickname(request.getNickname() == null || request.getNickname().isBlank()
+                ? defaultNickname : request.getNickname().trim());
         user.setAuthProvider("local");
         user.setStatus(1);
         userMapper.insert(user);

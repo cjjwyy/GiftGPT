@@ -11,6 +11,10 @@ public class DeepseekDto {
         @JsonProperty("max_tokens") private int maxTokens = 2048;
         @JsonProperty("stream") private boolean stream = false;
     }
-    @Data public static class Choice { private Message message; }
-    @Data public static class Response { private List<Choice> choices; }
+   @Data public static class Choice { private Message message; }
+    @Data public static class Usage {
+        @JsonProperty("prompt_tokens") private int promptTokens;
+        @JsonProperty("completion_tokens") private int completionTokens;
+    }
+    @Data public static class Response { private List<Choice> choices; private Usage usage; }
 }

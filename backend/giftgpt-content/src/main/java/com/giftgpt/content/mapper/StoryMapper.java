@@ -9,6 +9,8 @@ import org.apache.ibatis.annotations.Select;
 
 @Mapper
 public interface StoryMapper extends BaseMapper<Story> {
+    @Select("SELECT * FROM story WHERE id = #{id} FOR UPDATE")
+    Story lockById(@Param("id") Long id);
 
     @Select("SELECT s.id, s.user_id, s.gift_record_id, s.title, s.content, s.images, " +
             "s.likes, s.is_anonymous, s.status, s.create_time, s.update_time, " +
