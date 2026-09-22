@@ -23,15 +23,22 @@ netsh interface portproxy add v4tov4 listenaddress=0.0.0.0 listenport=80 connect
 if ($LASTEXITCODE -ne 0) { throw 'Failed to configure port proxy.' }
 
 $ruleName = 'GiftGPT-HTTP-80'
-$rule = Get-NetFirewallRule -Name $ruleName -ErrorAction SilentlyContinue
-if ($rule) {
-    $filter = $rule | Get-NetFirewallPortFilter
-    if ($filter.Protocol -ne 'TCP' -or $filter.LocalPort -ne '80' -or $rule.Direction -ne 'Inbound') {
-        throw 'Existing named firewall rule has unexpected settings; refusing to overwrite it.'
+$firewallService = Get-Service MpsSvc
+Write-Output "Windows Firewall service: $($firewallService.Status)"
+if ($firewallService.Status -eq 'Running') {
+    $rule = Get-NetFirewallRule -Name $ruleName -ErrorAction SilentlyContinue
+    if ($rule) {
+        $filter = $rule | Get-NetFirewallPortFilter
+        if ($filter.Protocol -ne 'TCP' -or $filter.LocalPort -ne '80' -or $rule.Direction -ne 'Inbound') {
+            throw 'Existing named firewall rule has unexpected settings; refusing to overwrite it.'
+        }
+        $rule | Set-NetFirewallRule -Enabled True -Action Allow -Profile Any
+    } else {
+        New-NetFirewallRule -Name $ruleName -DisplayName 'GiftGPT HTTP port 80' -Direction Inbound -Protocol TCP -LocalPort 80 -Action Allow -Profile Any | Out-Null
     }
-    $rule | Set-NetFirewallRule -Enabled True -Action Allow -Profile Any
 } else {
-    New-NetFirewallRule -Name $ruleName -DisplayName 'GiftGPT HTTP port 80' -Direction Inbound -Protocol TCP -LocalPort 80 -Action Allow -Profile Any | Out-Null
+    # Do not globally enable a stopped firewall: existing remote access could be blocked.
+    Write-Warning 'Windows Firewall is already stopped; preserving server policy. If enabled later, rerun this workflow to allow TCP 80.'
 }
 
 $verified = $false
