@@ -1,0 +1,26 @@
+name: Configure HTTP Proxy
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'ops/setup-http-proxy.ps1'
+      - '.github/workflows/configure-http-proxy.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: giftgpt-http-proxy
+  cancel-in-progress: false
+
+jobs:
+  configure:
+    runs-on: self-hosted
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure and verify Windows HTTP port proxy
+        shell: powershell
+        run: ./ops/setup-http-proxy.ps1
