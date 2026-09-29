@@ -10,30 +10,7 @@ import { toast } from 'react-hot-toast';
 import Link from 'next/link';
 import Image from 'next/image';
 import PackagingPreview from '@/components/PackagingPreview';
-
-const GIFT_BOXES = [
-  { id: 'classic', name: '经典缎面礼盒', desc: '硬质磁吸礼盒，缎面蝴蝶结，丝绒内衬', svg: '/packaging/box-classic.svg' },
-  { id: 'korean', name: '韩式极简礼盒', desc: '哑光质感，单色丝带，简约标签', svg: '/packaging/box-korean.svg' },
-  { id: 'kraft', name: '牛皮纸自然风', desc: '牛皮纸+麻绳+干花点缀，环保自然', svg: '/packaging/box-kraft.svg' },
-  { id: 'luxury', name: '轻奢烫金礼盒', desc: '烫金封面，双层蝴蝶结，珠光内衬', svg: '/packaging/box-luxury.svg' },
-  { id: 'acrylic', name: '透明亚克力盒', desc: '透明展示盒，内填拉菲草，丝带装饰', svg: '/packaging/box-acrylic.svg' },
-];
-
-const CUSTOMIZATIONS = [
-  { id: 'ribbon_text', name: '礼带烫金字', svg: '/packaging/opt-ribbon-text.svg' },
-  { id: 'greeting_card', name: '手写贺卡', svg: '/packaging/opt-greeting-card.svg' },
-  { id: 'dried_flower', name: '干花装饰', svg: '/packaging/opt-dried-flower.svg' },
-  { id: 'polaroid', name: '拍立得照片夹', svg: '/packaging/opt-polaroid.svg' },
-  { id: 'scent', name: '香薰加香', svg: '/packaging/opt-scent.svg' },
-  { id: 'band_wrap', name: '定制腰封', svg: '/packaging/opt-band-wrap.svg' },
-];
-
-const RIBBON_STYLES = [
-  { id: 'cross', name: '经典交叉', svg: '/packaging/ribbon-cross.svg' },
-  { id: 'side', name: '单侧斜绑', svg: '/packaging/ribbon-side.svg' },
-  { id: 'double_bow', name: '双层蝴蝶结', svg: '/packaging/ribbon-double-bow.svg' },
-  { id: 'furoshiki', name: '日式风吕敷', svg: '/packaging/ribbon-furoshiki.svg' },
-];
+import { GIFT_BOXES, CUSTOMIZATIONS, RIBBON_STYLES } from '@/lib/packagingCatalog';
 
 const SCENTS = ['玫瑰', '白茶', '雪松'];
 
@@ -203,8 +180,9 @@ function PackagingContent() {
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-10">
-      <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">礼物包装</h1>
-      {(hasProduct || viewingPlan) && <PackagingPreview theme={selectedBox} ribbonColor={ribbonColor} ribbonStyle={ribbonStyle} ribbonText={ribbonText} cardText={cardText} customs={customs} productName={dispProductName} />}
+      <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">礼物包装</h1>
+      <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">从一只礼盒，到一个温柔的细节，让心意有迹可循。图片由 AI 生成，仅作款式参考。</p>
+      {(hasProduct || viewingPlan) && <PackagingPreview theme={selectedBox} ribbonColor={ribbonColor} ribbonStyle={ribbonStyle} ribbonText={ribbonText} cardText={cardText} scent={scent} customs={customs} productName={dispProductName} />}
 
       {viewingPlan && (
         <button onClick={backToBrowse} className="btn-outline text-sm py-2 px-4 mb-4 flex items-center gap-2">
@@ -246,8 +224,9 @@ function PackagingContent() {
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-8">
         {GIFT_BOXES.map(box => (
           <button key={box.id} onClick={() => !readOnly && setSelectedBox(box.id)} disabled={readOnly}
+            aria-pressed={selectedBox === box.id}
             className={`card p-3 text-center transition-all ${selectedBox === box.id ? 'ring-2 ring-primary-500' : 'hover:shadow-md'} ${readOnly ? 'cursor-default' : ''}`}>
-            <Image src={box.svg} alt={box.name} width={160} height={160} className="w-full aspect-square object-contain mb-2" />
+            <Image src={box.image} alt={box.name} width={480} height={480} sizes="(max-width: 640px) 45vw, (max-width: 1024px) 30vw, 180px" unoptimized className="w-full aspect-square object-cover rounded-xl mb-3" />
             <p className="text-sm font-medium text-gray-800 dark:text-gray-100">{box.name}</p>
             <p className="text-xs text-gray-400 mt-0.5 line-clamp-2">{box.desc}</p>
             <p className="text-xs text-rose-500 mt-1">{pricesReady ? `¥${BOX_PRICES[box.id]?.toFixed(2)}` : '价格加载中'}</p>
@@ -259,17 +238,19 @@ function PackagingContent() {
       <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-3">个性化定制</h2>
       <div className="space-y-3 mb-8">
         {CUSTOMIZATIONS.map(c => (
-          <div key={c.id} className={`card p-4 flex items-center gap-4 transition-all ${customs.has(c.id) ? 'ring-1 ring-primary-300' : ''}`}>
+          <div key={c.id} className={`card p-4 grid grid-cols-[20px_64px_minmax(0,1fr)] sm:grid-cols-[20px_80px_minmax(0,1fr)] items-center gap-3 sm:gap-4 transition-all ${customs.has(c.id) ? 'ring-1 ring-primary-300' : ''}`}>
             <input type="checkbox" checked={customs.has(c.id)} onChange={() => toggleCustom(c.id)} disabled={readOnly}
-              className="w-5 h-5 rounded border-gray-300 text-primary-500 focus:ring-primary-500" />
-            <Image src={c.svg} alt={c.name} width={48} height={48} className="w-12 h-12 object-contain" />
-            <div className="flex-1">
+              aria-label={c.name} className="w-5 h-5 shrink-0 rounded border-gray-300 text-primary-500 focus:ring-primary-500" />
+            <Image src={c.image} alt={c.name} width={160} height={160} unoptimized className="w-16 h-16 sm:w-20 sm:h-20 shrink-0 rounded-xl object-cover" />
+            <div className="min-w-0">
               <p className="font-medium text-gray-800 dark:text-gray-100">{c.name}</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{c.desc}</p>
               <p className="text-xs text-rose-500">{pricesReady ? `+¥${CUSTOMIZATION_PRICES[c.id]?.toFixed(2)}` : '价格加载中'}</p>
+            </div>
               {c.id === 'ribbon_text' && customs.has('ribbon_text') && (
-                <div className="flex items-center gap-2 mt-2">
+                <div className="col-span-3 sm:col-start-3 sm:col-span-1 flex flex-wrap items-center gap-2">
                   <input value={ribbonText} onChange={e => setRibbonText(e.target.value.slice(0, 10))} disabled={readOnly}
-                    placeholder="烫金文字（最多10字）" className="input-field text-sm flex-1" />
+                    placeholder="烫金文字（最多10字）" className="input-field text-sm flex-1 min-w-0" />
                   <select value={ribbonColor} onChange={e => setRibbonColor(e.target.value)} disabled={readOnly} className="input-field text-sm w-24">
                     <option value="金色">金色</option>
                     <option value="银色">银色</option>
@@ -277,9 +258,9 @@ function PackagingContent() {
                 </div>
               )}
               {c.id === 'greeting_card' && customs.has('greeting_card') && (
-                <div className="flex items-center gap-2 mt-2 w-full">
+                <div className="col-span-3 sm:col-start-3 sm:col-span-1 flex flex-wrap items-center gap-2 w-full">
                   <textarea value={cardText} onChange={e => setCardText(e.target.value.slice(0, 50))} disabled={readOnly}
-                    placeholder="贺卡文案（50字以内）" className="input-field text-sm flex-1" rows={2} />
+                    placeholder="贺卡文案（50字以内）" className="input-field text-sm w-full sm:flex-1 min-w-0" rows={2} />
                   <button type="button" disabled={readOnly || aiGreetingLoading} onClick={onAiGreeting}
                     className="btn-primary text-sm py-1.5 px-4 flex items-center gap-2 whitespace-nowrap">
                     <Sparkles className="w-3.5 h-3.5" /> {aiGreetingLoading ? '生成中' : 'AI 生成'}
@@ -287,13 +268,11 @@ function PackagingContent() {
                 </div>
               )}
               {c.id === 'scent' && customs.has('scent') && (
-                <select value={scent} onChange={e => setScent(e.target.value)} disabled={readOnly} className="input-field text-sm mt-2 w-32">
+                <select value={scent} onChange={e => setScent(e.target.value)} disabled={readOnly} className="col-span-3 sm:col-start-3 sm:col-span-1 input-field text-sm w-32">
                   <option value="">选择香型</option>
                   {SCENTS.map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
               )}
-
-            </div>
           </div>
         ))}
       </div>
@@ -303,9 +282,11 @@ function PackagingContent() {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
         {RIBBON_STYLES.map(r => (
           <button key={r.id} onClick={() => !readOnly && setRibbonStyle(r.id)} disabled={readOnly}
+            aria-pressed={ribbonStyle === r.id}
             className={`card p-3 text-center transition-all ${ribbonStyle === r.id ? 'ring-2 ring-primary-500' : 'hover:shadow-md'} ${readOnly ? 'cursor-default' : ''}`}>
-            <Image src={r.svg} alt={r.name} width={180} height={180} className="w-full aspect-square object-contain mb-2" />
+            <Image src={r.image} alt={r.name} width={480} height={480} sizes="(max-width: 640px) 45vw, 220px" unoptimized className="w-full aspect-square object-cover rounded-xl mb-3" />
             <p className="text-sm font-medium text-gray-800 dark:text-gray-100">{r.name}</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{r.desc}</p>
           </button>
         ))}
       </div>

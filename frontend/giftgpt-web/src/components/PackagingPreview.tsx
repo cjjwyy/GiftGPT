@@ -1,45 +1,154 @@
 'use client';
 
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
+import Image from 'next/image';
+import { toast } from 'react-hot-toast';
+import { GIFT_BOXES, CUSTOMIZATIONS, RIBBON_STYLES } from '@/lib/packagingCatalog';
 
 interface Props {
   theme: string; ribbonColor: string; ribbonStyle: string; ribbonText: string;
-  cardText: string; customs: Set<string>; productName: string;
+  cardText: string; scent: string; customs: Set<string>; productName: string;
+}
+
+const DISCLAIMER = 'AI 生成款式参考，非组合实拍；图片中的文字、颜色与配件不代表最终定制效果。';
+
+function loadImage(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const image = new window.Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error('图片加载失败，请稍后重试'));
+    image.src = src;
+  });
+}
+
+function wrapText(ctx: CanvasRenderingContext2D, value: string, width: number) {
+  const lines: string[] = [];
+  for (const paragraph of value.split('\n')) {
+    let line = '';
+    for (const char of paragraph) {
+      if (line && ctx.measureText(line + char).width > width) {
+        lines.push(line);
+        line = '';
+      }
+      line += char;
+    }
+    lines.push(line);
+  }
+  return lines;
 }
 
 export default function PackagingPreview(p: Props) {
-  const ref = useRef<SVGSVGElement>(null);
-  const colors: Record<string, string> = { classic: '#653f54', korean: '#f0e8dd', kraft: '#c79a64', luxury: '#203e44', acrylic: '#e2eff0' };
-  const ribbon = ({ '金色': '#d6b368', '红色': '#ba4658', '粉色': '#e8a8be', '蓝色': '#688dad', '白色': '#faf7f0' } as Record<string, string>)[p.ribbonColor] || '#d6b368';
-  const download = () => {
-    if (!ref.current) return;
-    const text = new XMLSerializer().serializeToString(ref.current);
-    const url = URL.createObjectURL(new Blob([text], { type: 'image/svg+xml;charset=utf-8' }));
-    const a = document.createElement('a'); a.href = url; a.download = 'gift-packaging.svg'; a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  const [exporting, setExporting] = useState(false);
+  const exportBusy = useRef(false);
+  const box = GIFT_BOXES.find(item => item.id === p.theme);
+  const ribbon = RIBBON_STYLES.find(item => item.id === p.ribbonStyle);
+  const extras = CUSTOMIZATIONS.filter(item => p.customs.has(item.id));
+  const notes = [
+    p.customs.has('ribbon_text') && `礼带文字：${p.ribbonText || '待填写'} · 烫字颜色：${p.ribbonColor || '未选择'}`,
+    p.customs.has('greeting_card') && `贺卡内容：${p.cardText || '待填写'}`,
+    p.customs.has('scent') && `香型：${p.scent || '未选择'}`,
+  ].filter((note): note is string => Boolean(note));
+
+  const download = async () => {
+    if (!box || exportBusy.current) return;
+    exportBusy.current = true;
+    setExporting(true);
+    try {
+      // Compose generated raster assets with actual selections, never SVG.
+      const items = [box, ...(ribbon ? [ribbon] : []), ...extras];
+      const images = await Promise.all(items.map(item => loadImage(item.image)));
+      const imageMap = new Map(items.map((item, i) => [item.image, images[i]]));
+      await document.fonts.ready;
+      const canvas = document.createElement('canvas');
+      canvas.width = 1200;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) throw new Error('当前浏览器不支持图片导出');
+      ctx.font = '24px sans-serif';
+      const titleLines = wrapText(ctx, p.productName || '你的心意，即将启程', 1104);
+      const noteLines = notes.flatMap(note => wrapText(ctx, note, 1104));
+      const top = 126 + titleLines.length * 32;
+      const footer = top + 584 + (extras.length ? 244 : 0);
+      canvas.height = footer + noteLines.length * 34 + 104;
+      ctx.fillStyle = '#fcf8f2';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = '#473c37';
+      ctx.font = 'bold 36px sans-serif';
+      ctx.fillText('GiftGPT · 包装搭配方案', 48, 66);
+      ctx.font = '24px sans-serif';
+      titleLines.forEach((line, i) => ctx.fillText(line, 48, 110 + i * 32));
+      ctx.drawImage(imageMap.get(box.image)!, 48, top, 540, 540);
+      ctx.font = 'bold 30px sans-serif';
+      ctx.fillText(box.name, 640, top + 42);
+      ctx.font = '22px sans-serif';
+      wrapText(ctx, box.desc, 510).forEach((line, i) => ctx.fillText(line, 640, top + 84 + i * 30));
+      if (ribbon) {
+        ctx.drawImage(imageMap.get(ribbon.image)!, 640, top + 144, 280, 280);
+        ctx.fillText(`绑法参考 · ${ribbon.name}`, 640, top + 464);
+      } else {
+        ctx.fillText('绑法：未选择', 640, top + 180);
+      }
+      extras.forEach((item, i) => {
+        const x = 48 + i * 184;
+        ctx.drawImage(imageMap.get(item.image)!, x, top + 584, 168, 168);
+        ctx.font = '20px sans-serif';
+        ctx.fillText(item.name, x, top + 786);
+      });
+      ctx.font = '24px sans-serif';
+      noteLines.forEach((line, i) => ctx.fillText(line, 48, footer + i * 34));
+      ctx.fillStyle = '#786b61';
+      ctx.font = '20px sans-serif';
+      ctx.fillText(DISCLAIMER, 48, canvas.height - 40);
+      const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob(
+        value => value ? resolve(value) : reject(new Error('图片导出失败，请重试')), 'image/png',
+      ));
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'gift-packaging.png';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '图片导出失败，请重试');
+    } finally {
+      exportBusy.current = false;
+      setExporting(false);
+    }
   };
-  return <section className="card mb-6">
-    <div className="flex justify-between gap-3 items-center"><h2 className="font-semibold">包装实时预览</h2><button type="button" className="btn-outline text-sm" disabled={!p.theme} onClick={download}>导出预览 SVG</button></div>
-    <p className="text-xs text-gray-500 mt-2">效果示意，非实物尺寸；自定义颜色未识别时使用金色。照片夹仅作占位展示。</p>
-    <svg ref={ref} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 440" role="img" aria-label="包装方案预览" className="w-full max-w-xl mx-auto" style={{ fontFamily: 'sans-serif' }}>
-      <title>礼物包装方案</title>
-      <rect width="640" height="440" rx="20" fill="#fcf8f4" />
-      <text x="320" y="35" textAnchor="middle" fill="#57453e" fontSize="17">{p.productName.slice(0, 25) || '你的心意，即将启程'}</text>
-      <rect x="116" y="78" width="380" height="258" rx="15" fill={colors[p.theme] || '#dedede'} stroke="#aa9278" strokeWidth="2" />
-      {p.theme === 'acrylic' && <rect x="133" y="95" width="346" height="224" rx="10" fill="#ffffff" fillOpacity="0.55" stroke="#bacfd1" />}
-      <g transform={p.ribbonStyle === 'side' ? 'rotate(-14 306 207)' : undefined}>
-        <rect x="285" y="78" width="42" height="258" fill={ribbon} />
-        {p.ribbonStyle !== 'side' && <rect x="116" y="164" width="380" height="30" fill={ribbon} />}
-        <path d="M306 172 C230 108 231 216 306 172 C381 108 381 216 306 172" fill={ribbon} stroke="#9b793e" strokeWidth="3" />
-        {p.ribbonStyle === 'double_bow' && <path d="M306 155 C246 89 256 168 306 155 C366 89 356 168 306 155" fill={ribbon} stroke="#9b793e" strokeWidth="2" />}
-        {p.ribbonStyle === 'furoshiki' && <path d="M132 95 L306 177 L480 95 M132 320 L306 177 L480 320" fill="none" stroke={ribbon} strokeWidth="22" />}
-      </g>
-      {p.customs.has('band_wrap') && <rect x="116" y="268" width="380" height="32" fill="#f4e6d0" />}
-      {p.customs.has('ribbon_text') && <text x="310" y="187" textAnchor="middle" fill="#4b3020" fontSize="13">{p.ribbonText.slice(0, 10)}</text>}
-      {p.customs.has('dried_flower') && <g stroke="#748564" strokeWidth="3"><path d="M160 267 L199 212 M160 267 L147 215" /><circle cx="199" cy="212" r="13" fill="#dba8ad" /><circle cx="147" cy="215" r="10" fill="#e2c88e" /></g>}
-      {p.customs.has('polaroid') && <g transform="rotate(9 468 260)"><rect x="420" y="206" width="90" height="112" fill="white" stroke="#aaa" /><rect x="430" y="217" width="70" height="69" fill="#e9ddd2" /><text x="465" y="256" textAnchor="middle" fontSize="12" fill="#765">照片位</text></g>}
-      {p.customs.has('greeting_card') && <g><rect x="172" y="307" width="290" height="100" rx="5" fill="#fffefa" stroke="#cbb997" /><text x="190" y="334" fill="#745c4c" fontSize="13">心意贺卡</text>{[0, 1, 2].map(i => <text key={i} x="190" y={356 + i * 18} fill="#51443e" fontSize="12">{p.cardText.slice(i * 19, (i + 1) * 19)}</text>)}</g>}
-      {p.customs.has('scent') && <text x="485" y="372" fill="#806956" fontSize="13">香氛装饰</text>}
-    </svg>
+
+  return <section className="card mb-6" aria-label="包装搭配方案">
+    <div className="flex flex-wrap justify-between gap-3 items-center">
+      <h2 className="font-semibold">包装搭配方案</h2>
+      <button type="button" className="btn-outline text-sm disabled:opacity-40" disabled={!box || exporting} onClick={download}>
+        {exporting ? '正在导出…' : '导出方案 PNG'}
+      </button>
+    </div>
+    <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 leading-relaxed">{DISCLAIMER}</p>
+    {!box ? <div className="mt-4 rounded-2xl bg-stone-50 dark:bg-gray-800 p-10 text-center text-sm text-gray-500 dark:text-gray-400">
+      选择一款礼盒，开始搭配你的心意。
+    </div> : <div className="mt-5 grid gap-5 md:grid-cols-2">
+      <div>
+        <Image src={box.image} alt={`${box.name}款式参考`} width={640} height={640} unoptimized className="w-full rounded-2xl aspect-square object-cover" />
+        <p className="mt-3 text-sm text-gray-600 dark:text-gray-300 break-words">{p.productName || '你的心意，即将启程'}</p>
+      </div>
+      <div className="min-w-0">
+        <h3 className="text-xl font-semibold">{box.name}</h3>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">{box.desc}</p>
+        {ribbon ? <div className="mt-4 flex items-center gap-4">
+          <Image src={ribbon.image} alt={`${ribbon.name}绑法参考`} width={112} height={112} unoptimized className="w-24 h-24 rounded-xl object-cover" />
+          <div><p className="text-xs text-gray-500 dark:text-gray-400">绑法参考</p><p className="font-medium mt-1">{ribbon.name}</p><p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{ribbon.desc}</p></div>
+        </div> : <p className="text-sm text-gray-500 dark:text-gray-400 mt-4">绑法尚未选择</p>}
+        {extras.length > 0 && <div className="grid grid-cols-3 gap-3 mt-5">
+          {extras.map(item => <div key={item.id}>
+            <Image src={item.image} alt={item.name} width={128} height={128} unoptimized className="w-full rounded-xl aspect-square object-cover" />
+            <p className="mt-1.5 text-xs text-gray-600 dark:text-gray-300">{item.name}</p>
+          </div>)}
+        </div>}
+        {notes.length > 0 && <div className="mt-4 space-y-2 border-t border-stone-200 dark:border-gray-700 pt-4">
+          {notes.map((note, i) => <p key={i} className="text-sm text-gray-700 dark:text-gray-200 break-words whitespace-pre-wrap">{note}</p>)}
+        </div>}
+      </div>
+    </div>}
   </section>;
 }
