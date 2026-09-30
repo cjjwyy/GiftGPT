@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
 import { packagingApi, greetingApi } from '@/lib/api';
+import { createRequestKey } from '@/lib/utils';
 import { Loading } from '@/components/Loading';
 import { Sparkles, Gift, History, ArrowLeft } from 'lucide-react';
 import { toast } from 'react-hot-toast';
@@ -121,9 +122,9 @@ function PackagingContent() {
     if (saveBusy.current || !pricesReady) return;
     if (!selectedBox) { toast.error('请选择礼盒'); return; }
     saveBusy.current = true;
-    if (!requestKey.current) requestKey.current = crypto.randomUUID();
     setSaving(true);
     try {
+      if (!requestKey.current) requestKey.current = createRequestKey();
       const saved = await packagingApi.save({
         planId: savedPlan?.id, version: savedPlan?.version, requestKey: requestKey.current,
         productName, productImageUrl: imageUrl,
@@ -142,8 +143,10 @@ function PackagingContent() {
       setSavedPlan(saved);
       toast.success('包装方案已保存');
     } catch (e: any) { toast.error(e?.message || '保存失败'); }
-    setSaving(false);
-    saveBusy.current = false;
+    finally {
+      setSaving(false);
+      saveBusy.current = false;
+    }
   };
 
   const viewPlan = (plan: any) => {

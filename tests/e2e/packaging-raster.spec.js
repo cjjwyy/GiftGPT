@@ -97,6 +97,49 @@ test('saved plan shows the same raster assets and actual customization text', as
   await expect(page.getByRole('checkbox', { name: '手写贺卡', exact: true })).toBeDisabled();
 });
 
+test('save works without randomUUID and reuses its request key on retry', async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(crypto, 'randomUUID', { value: undefined, configurable: true });
+  });
+  await start(page);
+  await page.getByRole('button', { name: /经典缎面礼盒/ }).click();
+  const firstRequest = page.waitForRequest(req => req.url().endsWith('/packaging/save'));
+  await page.getByRole('button', { name: '确认包装方案', exact: true }).click();
+  const key = (await firstRequest).postDataJSON().requestKey;
+  expect(key).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+  const retryRequest = page.waitForRequest(req => req.url().endsWith('/packaging/save'));
+  await page.getByRole('button', { name: '重新保存', exact: true }).click();
+  expect((await retryRequest).postDataJSON().requestKey).toBe(key);
+});
+
+test('request key generation failure releases the save lock for retry', async ({ page }) => {
+  await start(page);
+  await page.getByRole('button', { name: /经典缎面礼盒/ }).click();
+  await page.evaluate(() => {
+    const original = crypto.getRandomValues.bind(crypto);
+    let failOnce = true;
+    Object.defineProperty(crypto, 'randomUUID', { value: undefined, configurable: true });
+    Object.defineProperty(crypto, 'getRandomValues', {
+      configurable: true,
+      value(array) {
+        if (failOnce) {
+          failOnce = false;
+          throw new Error('测试随机数生成失败');
+        }
+        return original(array);
+      },
+    });
+  });
+  const button = page.getByRole('button', { name: '确认包装方案', exact: true });
+  await button.click();
+  await expect(page.getByText('测试随机数生成失败', { exact: true })).toBeVisible();
+  await expect(button).toBeEnabled();
+  const savedRequest = page.waitForRequest(req => req.url().endsWith('/packaging/save'));
+  await button.click();
+  expect((await savedRequest).postDataJSON().requestKey).toBeTruthy();
+  await expect(page.getByRole('button', { name: '重新保存', exact: true })).toBeVisible();
+});
+
 test('mobile and dark mode do not overflow after selecting all extras', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await start(page);
